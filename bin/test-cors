@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# test-cors - Test URL for CORS headers
+#
+# Usage: test-cors $file $method $origin
+#
+# Examples:
+# test-cors https://example.com/file.png
+# test-cors https://example.com/file.png POST
+# test-cors https://example.com/file.png POST https://origin-host.com
+
+curl -H "Access-Control-Request-Method: $2 || GET" \
+  -H "Origin: $3 || http://example.com" \
+  --head $1 2>&1 |
+  grep -i 'Access-Control-Allow-Origin' || echo "CORS header not found"

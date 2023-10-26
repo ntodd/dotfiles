@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+require 'fileutils'
+require 'English'
+
+# Usage:
+# transcode-dir
+# transcode-dir 0:0:0:0
+
+supported_types = %w[mov flv wmv avi divx mpg mpeg mp4 mkv m4v]
+output_dir = './compressed'
+
+glob = "./*\.{#{supported_types.join(',')}}"
+
+if Dir.glob(glob).length.positive?
+  # Make the output dir
+  FileUtils.mkdir_p(output_dir)
+else
+  puts "No supported video types in directory. Supported types: #{supported_types.join(', ')}"
+  exit
+end
+
+Dir.glob(glob).each do |input_path|
+  # For each item run the "transcode-h264" script
+  puts "Starting to transcode #{input_path}"
+  IO.popen("transcode-h264 #{input_path} -o #{output_dir} 2>&1") do |output|
+    while (line = output.gets)
+      puts line
+    end
+  end
+  if $CHILD_STATUS.success?
+    puts "Error transcoding #{input_path}"
+  else
+    puts "Finished transcoding #{input_path}"
+  end
+end

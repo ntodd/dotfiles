@@ -1,0 +1,98 @@
+# .tmux.conf
+
+##########
+# CONFIG #
+##########
+
+# increase scrollback buffer size
+set -g history-limit 50000
+
+# turn on mouse mode
+set -g mouse on
+
+# focus events enabled for terminals that support them
+set -g focus-events on
+
+# when in copy mode, use vi key bindings
+setw -g mode-keys vi
+
+# add truecolor support
+set-option -ga terminal-overrides ",xterm-256color:Tc"
+# default terminal is 256 colors
+set -g default-terminal "screen-256color"
+
+# start window and pane ids at 1 instead of 0
+set -g base-index 1
+setw -g pane-base-index 1
+
+# Helps speed up vim inside tmux
+set-option -s escape-time 10
+
+# Automatically set window title
+set-window-option -g automatic-rename on
+set-option -g set-titles on
+
+################
+# KEY BINDINGS #
+################
+
+# remap tmux prefix
+unbind-key C-b
+set -g prefix 'C-Space'
+bind-key 'C-Space' send-prefix
+
+# set "r" to reload tmux config
+bind r source-file ~/.tmux.conf \; display-message "Config reloaded..."
+
+# rebind create window and pane keys to create with current path already set
+bind '"' split-window -c "#{pane_current_path}"
+bind % split-window -h -c "#{pane_current_path}"
+bind c new-window -c "#{pane_current_path}"
+
+# Use Alt-arrow keys without prefix key to switch panes
+bind -n M-Left select-pane -L
+bind -n M-Right select-pane -R
+bind -n M-Up select-pane -U
+bind -n M-Down select-pane -D
+
+# Shift arrow to switch windows
+bind -n S-Left previous-window
+bind -n S-Right next-window
+
+# Toggle pane synchronization
+# bind -n C-x setw synchronize-panes
+bind C-x setw synchronize-panes
+
+# Toggle local/outer prefix off for nested tmux sessions
+bind -T root F12 set prefix None \; set key-table off \; if -F '#{pane_in_mode}' 'send-keys -X cancel' \; refresh-client -S
+bind -T off F12 set -u prefix \; set -u key-table \; refresh-client -S
+
+##############
+# STATUS BAR #
+##############
+
+set -g status-right-length 90
+set -g @sysstat_mem_view_tmpl 'MEM: #{mem.used}'
+set -g @sysstat_cpu_view_tmpl 'CPU #{cpu.pused}'
+
+# Determine if local prefix has been disabled
+wg_is_keys_off="#[bg=red]#([ $(tmux show-option -qv key-table) = 'off' ] && echo ' LOCAL PREFIX OFF ')#[default]"
+
+# Status bar format
+set -g status-right "$wg_is_keys_off#[bg=yellow] #(whoami)@#H #[bg=blue] #{sysstat_cpu} | #{sysstat_mem} "
+
+###########
+# PLUGINS #
+###########
+
+# list of plugins (Install Tmux Plugin Manager: https://github.com/tmux-plugins/tpm)
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+set -g @plugin 'samoshkin/tmux-plugin-sysstat'
+
+# Automatically install tpm and plugins
+if "test ! -d ~/.tmux/plugins/tpm" \
+   "run 'git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm && ~/.tmux/plugins/tpm/bin/install_plugins'"
+
+# Initialize TMUX plugin manager (keep this line at the very bottom of tmux.conf)
+run -b '~/.tmux/plugins/tpm/tpm'
