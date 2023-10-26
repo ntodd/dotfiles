@@ -51,19 +51,19 @@ plugins=(git z)
 
 source $ZSH/oh-my-zsh.sh
 
-# You may need to manually set your language environment
-# export LANG=en_US.UTF-8
-
-# Compilation flags
-# export ARCHFLAGS="-arch x86_64"
-
-export DOTFILES=$HOME/.dotfiles
-
 # Stash your environment variables in ~/.localrc. This means they'll stay out
 # of your main dotfiles repository (which may be public, like this one), but
 # you'll have access to them in your scripts.
 if [[ -e ~/.localrc ]]; then
   source ~/.localrc
+fi
+
+# If CODESPACES is set, dotfiles were cloned to workspace
+if [[ -n "$CODESPACES" ]]; then
+  export DOTFILES=/workspaces/.codespaces/.persistedshare/dotfiles
+else
+  # Otherwise, dotfiles should have been cloned to ~/.dotfiles by user
+  export DOTFILES=$HOME/.dotfiles
 fi
 
 # all of our zsh files

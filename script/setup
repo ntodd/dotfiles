@@ -55,7 +55,7 @@ link_file() {
       if [ "$currentSrc" == "$src" ]; then
         skip=true
       else
-        if [[ "$CODESPACES" == "true" ]]; then
+        if [[ -n "$CODESPACES" ]]; then
           # We are installing into a codespace, so we should just overwrite
           overwrite=true
         else
