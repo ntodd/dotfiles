@@ -7,6 +7,15 @@ DOTFILES_ROOT=$(pwd -P)
 
 set -e
 
+FORCE_OVERWRITE=false
+
+# Check for --force or -y flag
+for arg in "$@"; do
+  if [ "$arg" == "--force" ] || [ "$arg" == "-y" ]; then
+    FORCE_OVERWRITE=true
+  fi
+done
+
 info() {
   printf "\r  [ \033[00;34m..\033[0m ] $1\n"
 }
@@ -55,8 +64,8 @@ link_file() {
       if [ "$currentSrc" == "$src" ]; then
         skip=true
       else
-        if [[ -n "$CODESPACES" ]]; then
-          # We are installing into a codespace, so we should just overwrite
+        if [[ -n "$CODESPACES" ]] || [ "$FORCE_OVERWRITE" == "true" ]; then
+          # We are installing into a codespace or force flag is set, so we should just overwrite
           overwrite=true
         else
           user "😱 File already exists: $dst ($(basename "$src")), what do you want to do?\n\
