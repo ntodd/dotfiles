@@ -39,7 +39,7 @@ install_oh_my_zsh() {
     success "✅ Oh My Zsh is already installed"
   else
     info '🚀 Installing Oh My Zsh...'
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended --keep-zshrc
   fi
 }
 
