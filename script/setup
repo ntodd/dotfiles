@@ -125,8 +125,24 @@ link_file() {
 install_dotfiles() {
   info '🚀 Installing dotfiles...'
   local overwrite_all=false backup_all=false skip_all=false
-  for src in $(find -H "$DOTFILES_ROOT" -maxdepth 2 -name '*.symlink' -not -path '*.git*'); do
-    dst="$HOME/.$(basename "${src%.*}")"
+
+  for src in $(find -H "$DOTFILES_ROOT" -name '*.symlink' -not -path '*.git*'); do
+    # Get the relative path from DOTFILES_ROOT to the symlink file
+    local rel_path="${src#$DOTFILES_ROOT/}"
+
+    # Get everything after the top-level directory
+    local nested_path="${rel_path#*/}"
+
+    if [[ "$nested_path" == */* ]]; then
+      # Has nested structure (like ssh/.ssh/config.symlink)
+      local dir_path=$(dirname "$nested_path")
+      mkdir -p "$HOME/$dir_path"
+      dst="$HOME/$dir_path/$(basename "${src%.*}")"
+    else
+      # No nested structure, treat as home directory file
+      dst="$HOME/.$(basename "${src%.*}")"
+    fi
+
     link_file "$src" "$dst"
   done
 }
