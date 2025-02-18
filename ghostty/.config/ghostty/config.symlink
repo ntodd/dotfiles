@@ -1,0 +1,15 @@
+# This is the configuration file for Ghostty.
+#
+# Run `ghostty +show-config --default --docs` to view a list of
+# all available config options and their default values.
+#
+# Additionally, each config option is also explained in detail
+# on Ghostty's website, at https://ghostty.org/docs/config.
+
+theme = OneHalfDark
+font-family = "MesloLGS NF Regular"
+font-size = 13
+window-padding-x = 8
+window-padding-y = 4
+
+keybind = global:cmd+grave_accent=toggle_quick_terminal
