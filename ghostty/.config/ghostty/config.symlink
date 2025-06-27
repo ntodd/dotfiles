@@ -12,4 +12,4 @@ font-size = 13
 window-padding-x = 8
 window-padding-y = 4
 
-keybind = global:cmd+grave_accent=toggle_quick_terminal
+# keybind = global:cmd+grave_accent=toggle_quick_terminal
