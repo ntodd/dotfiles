@@ -147,9 +147,23 @@ install_dotfiles() {
   done
 }
 
+install_claude_config() {
+  info '🚀 Installing Claude configuration...'
+  local overwrite_all=false backup_all=false skip_all=false
+  
+  # Ensure ~/.claude directory exists
+  mkdir -p "$HOME/.claude"
+  
+  # Symlink individual Claude configuration items
+  link_file "$DOTFILES_ROOT/claude/settings.json" "$HOME/.claude/settings.json"
+  link_file "$DOTFILES_ROOT/claude/commands" "$HOME/.claude/commands"
+  link_file "$DOTFILES_ROOT/claude/agents" "$HOME/.claude/agents"
+}
+
 install_oh_my_zsh
 install_tmux_plugin_manager
 install_dotfiles
+install_claude_config
 
 echo ''
 echo '🎉 Installation complete! 🥳'

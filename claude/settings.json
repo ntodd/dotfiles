@@ -1,0 +1,30 @@
+{
+  "includeCoAuthoredBy": false,
+  "permissions": {
+    "allow": [
+      "Bash(mix test)",
+      "Bash(mix test:*)",
+      "Bash(mix format)",
+      "Bash(mix format:*)",
+      "Bash(mix compile)",
+      "Bash(mix compile:*)",
+      "Bash(mix credo:*)",
+      "Bash(mix deps:*)",
+      "Bash(mix help:*)",
+      "Bash(mix hex.info:*)",
+      "Bash(iex:*)",
+      "Bash(mkdir:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "WebFetch(domain:hexdocs.pm)"
+    ],
+    "deny": []
+  }
+}
