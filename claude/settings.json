@@ -26,5 +26,6 @@
       "WebFetch(domain:hexdocs.pm)"
     ],
     "deny": []
-  }
+  },
+  "alwaysThinkingEnabled": true
 }
