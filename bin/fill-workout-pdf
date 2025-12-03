@@ -1,0 +1,167 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "reportlab",
+#     "pypdf",
+# ]
+# ///
+
+"""
+Fill out workout reimbursement log PDF.
+
+Usage:
+    uv run fill_workout_pdf.py INPUT_PDF OUTPUT_PDF NAME MONTH_YEAR ENTRY [ENTRY ...]
+
+Each ENTRY should be in the format: DATE,LENGTH,ACTIVITY
+
+Examples:
+    uv run fill_workout_pdf.py template.pdf filled.pdf "Nathan Todd" "November 2025" \
+        "Nov 3,30 minutes,Jogging" "Nov 5,30 minutes,Jogging"
+
+    uv run fill_workout_pdf.py template.pdf filled.pdf "Nathan Todd" "December 2025" \
+        "Dec 1,45 minutes,Swimming" "Dec 5,30 minutes,Jogging" "Dec 10,60 minutes,Cycling"
+"""
+
+import argparse
+import io
+import sys
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from pypdf import PdfReader, PdfWriter
+
+
+def parse_entry(entry_str: str) -> tuple[str, str, str]:
+    """Parse an entry string like 'Nov 3,30 minutes,Jogging' into a tuple."""
+    parts = entry_str.split(",")
+    if len(parts) != 3:
+        raise ValueError(f"Invalid entry format: {entry_str!r}. Expected DATE,LENGTH,ACTIVITY")
+    return (parts[0].strip(), parts[1].strip(), parts[2].strip())
+
+
+def fill_workout_pdf(input_pdf: str, output_pdf: str, employee_name: str,
+                     month_year: str, workouts: list[tuple[str, str, str]]) -> None:
+    """Fill out the workout reimbursement PDF with the given data."""
+
+    if len(workouts) > 20:
+        raise ValueError(f"Too many workouts ({len(workouts)}). Maximum is 20.")
+
+    # Create overlay PDF with text
+    packet = io.BytesIO()
+    c = canvas.Canvas(packet, pagesize=letter)
+
+    # Set font
+    c.setFont("Helvetica", 10)
+
+    # Employee name (positioned after "EMPLOYEE NAME:" label)
+    # Midpoint between top/bottom: y=792-((89.5+99.4)/2)=697.6, then adjusted down
+    c.drawString(150, 695, employee_name)
+
+    # Month/Year (positioned after "MONTH/YEAR:" label)
+    # Midpoint between top/bottom: y=792-((89.8+99.8)/2)=697.2, then adjusted down
+    c.drawString(462, 695, month_year)
+
+    # Row y positions (converted from pdfplumber top-down to reportlab bottom-up)
+    # Using midpoint between top and bottom values: 792 - ((top + bottom) / 2)
+    row_y = [
+        792 - (140.8 + 150.8) / 2,  # Row 1
+        792 - (159.1 + 169.0) / 2,  # Row 2
+        792 - (177.2 + 187.2) / 2,  # Row 3
+        792 - (195.4 + 205.4) / 2,  # Row 4
+        792 - (213.7 + 223.6) / 2,  # Row 5
+        792 - (231.9 + 241.9) / 2,  # Row 6
+        792 - (250.1 + 260.0) / 2,  # Row 7
+        792 - (268.3 + 278.3) / 2,  # Row 8
+        792 - (286.5 + 296.5) / 2,  # Row 9
+        792 - (304.7 + 314.6) / 2,  # Row 10
+        792 - (322.9 + 332.9) / 2,  # Row 11
+        792 - (341.1 + 351.1) / 2,  # Row 12
+        792 - (359.3 + 369.2) / 2,  # Row 13
+        792 - (377.5 + 387.5) / 2,  # Row 14
+        792 - (395.7 + 405.7) / 2,  # Row 15
+        792 - (413.9 + 423.8) / 2,  # Row 16
+        792 - (432.1 + 442.1) / 2,  # Row 17
+        792 - (450.4 + 460.3) / 2,  # Row 18
+        792 - (468.6 + 478.6) / 2,  # Row 19
+        792 - (486.7 + 496.7) / 2,  # Row 20
+    ]
+
+    # Column x positions
+    date_x = 135
+    length_x = 199  # Aligned with "LENGTH OF WORKOUT" header
+    activity_x = 323  # Left edge of ACTIVITY column
+
+    # Fill in workout entries
+    for i, (date, length, activity) in enumerate(workouts):
+        y = row_y[i]
+        c.drawString(date_x, y, date)
+        c.drawString(length_x, y, length)
+        c.drawString(activity_x, y, activity)
+
+    c.save()
+
+    # Merge overlay with original PDF
+    packet.seek(0)
+    overlay = PdfReader(packet)
+    original = PdfReader(input_pdf)
+
+    writer = PdfWriter()
+    page = original.pages[0]
+    page.merge_page(overlay.pages[0])
+    writer.add_page(page)
+
+    with open(output_pdf, "wb") as f:
+        writer.write(f)
+
+    print(f"Created: {output_pdf}")
+    print(f"  Employee: {employee_name}")
+    print(f"  Month/Year: {month_year}")
+    print(f"  Workouts: {len(workouts)}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Fill out workout reimbursement log PDF.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s template.pdf filled.pdf "Nathan Todd" "November 2025" \\
+      "Nov 3,30 minutes,Jogging" "Nov 5,30 minutes,Jogging"
+
+  %(prog)s template.pdf filled.pdf "Nathan Todd" "December 2025" \\
+      "Dec 1,45 minutes,Swimming" "Dec 5,30 minutes,Jogging"
+
+Entry format: DATE,LENGTH,ACTIVITY
+  - DATE: e.g., "Nov 3", "Dec 15"
+  - LENGTH: e.g., "30 minutes", "1 hour"
+  - ACTIVITY: e.g., "Jogging", "Swimming", "Cycling"
+""")
+
+    parser.add_argument("input_pdf", help="Path to the blank workout log PDF template")
+    parser.add_argument("output_pdf", help="Path for the filled output PDF")
+    parser.add_argument("name", help="Employee name")
+    parser.add_argument("month_year", help="Month and year (e.g., 'November 2025')")
+    parser.add_argument("entries", nargs="+", metavar="ENTRY",
+                        help="Workout entries in format: DATE,LENGTH,ACTIVITY")
+
+    args = parser.parse_args()
+
+    # Parse workout entries
+    try:
+        workouts = [parse_entry(e) for e in args.entries]
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Fill the PDF
+    try:
+        fill_workout_pdf(args.input_pdf, args.output_pdf, args.name,
+                         args.month_year, workouts)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
