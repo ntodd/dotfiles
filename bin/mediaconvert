@@ -1,0 +1,360 @@
+#!/bin/bash
+
+# Default values
+INPUT_FILE=""
+OUTPUT_DIR=""
+CREATE_MP4=false
+
+# Parse command line arguments
+usage() {
+  echo "Usage: $0 [-m] -i input_file -o output_dir"
+  echo "  -i input_file    Input video file"
+  echo "  -o output_dir    Output directory for encoded files"
+  echo "  -m               Also create highest-quality level MP4 file (optional)"
+  exit 1
+}
+
+while getopts "mi:o:" opt; do
+  case $opt in
+  m) CREATE_MP4=true ;;
+  i) INPUT_FILE="$OPTARG" ;;
+  o) OUTPUT_DIR="$OPTARG" ;;
+  ?) usage ;;
+  esac
+done
+
+# Validate required parameters
+if [ -z "$INPUT_FILE" ] || [ -z "$OUTPUT_DIR" ]; then
+  usage
+fi
+
+# Exit on any error
+set -e
+
+# Function to check if a value is a valid number
+is_number() {
+  [[ "$1" =~ ^[0-9]+([.][0-9]+)?$ ]]
+}
+
+# Create output directories
+mkdir -p "${OUTPUT_DIR}/hls"
+if [ "$CREATE_MP4" = true ]; then
+  mkdir -p "${OUTPUT_DIR}/mp4"
+fi
+
+echo "Analyzing video complexity..."
+echo "Calculating scene complexity..."
+
+# Scene change complexity with error handling
+# SCENE_COMPLEXITY=$(ffmpeg -i "$INPUT_FILE" \
+#   -t 300 \
+#   -vf "scale='min(1280,iw):-2',select='gt(scene,0.4)',metadata=print:file=-" \
+#   -preset ultrafast \
+#   -vsync 0 \
+#   -f null - 2>&1 | grep -c "scene_score" || echo "0")
+
+# echo "Scene count: $SCENE_COMPLEXITY"
+# Calculate scene change frequency
+SCENE_FREQUENCY=$(ffmpeg -i "$INPUT_FILE" \
+  -t 300 \
+  -vf "select='gt(scene,0.4)',metadata=print:file=-" \
+  -f null - 2>&1 | grep -c "scene_score" || echo "0")
+
+# Calculate scene change magnitude using frame difference
+SCENE_MAGNITUDE=$(ffmpeg -i "$INPUT_FILE" \
+  -t 300 \
+  -vf "select='gt(scene,0.4)',mpdecimate,max_planes=0" \
+  -loglevel debug -f null - 2>&1 | awk '
+  /scene_score/ { getline; value=gensub(/.*diff:([0-9.]+).*/, "\\1", "g", $0); sum+=value; n++ }
+  END { print (n > 0) ? sum / n : 0 }
+')
+
+echo "Scene Frequency: $SCENE_FREQUENCY"
+echo "Scene Magnitude: $SCENE_MAGNITUDE"
+
+# Default weights for composite index
+weight_frequency=0.5
+weight_magnitude=0.5
+
+# Calculate composite scene complexity index
+SCENE_COMPLEXITY_INDEX=$(echo "scale=2; ($weight_frequency * $SCENE_FREQUENCY) + ($weight_magnitude * $SCENE_MAGNITUDE)" | bc)
+
+echo "Composite Scene Complexity Index: $SCENE_COMPLEXITY_INDEX"
+
+# Use the SCENE_COMPLEXITY_INDEX along with TEMPORAL_COMPLEXITY and SPATIAL_COMPLEXITY
+# Ensure we have valid numbers, otherwise use defaults
+if ! is_number "$SCENE_COMPLEXITY_INDEX"; then SCENE_COMPLEXITY_INDEX=0; fi
+
+echo "Calculating temporal complexity..."
+
+# Temporal complexity with error handling
+TEMPORAL_COMPLEXITY=$(ffmpeg -i "$INPUT_FILE" \
+  -t 300 \
+  -vf "scale='min(1280,iw):-2',select='not(mod(n,60))',metadata=print:file=-" \
+  -f null - 2>&1 | awk '
+    BEGIN { sum=0; n=0 }
+    /lavfi.scene_score/ { sum+=$2; n++ }
+    END { print (n>0) ? (sum/n * 100) : "50" }
+  ')
+
+echo "Temporal complexity: $TEMPORAL_COMPLEXITY"
+echo "Calculating spatial complexity..."
+
+# Spatial complexity with error handling
+SPATIAL_COMPLEXITY=$(ffmpeg -i "$INPUT_FILE" \
+  -t 300 \
+  -vf "scale='min(1280,iw):-2',select='not(mod(n,60))',signalstats" \
+  -f null - 2>&1 | awk '
+    BEGIN { sum=0; n=0 }
+    /YAVG/ { sum+=$2; n++ }
+    END { print (n>0) ? (sum/n) : "128" }
+  ')
+
+echo "Spatial complexity: $SPATIAL_COMPLEXITY"
+
+# Ensure we have valid numbers, otherwise use defaults
+if ! is_number "$SCENE_COMPLEXITY"; then SCENE_COMPLEXITY=0; fi
+if ! is_number "$TEMPORAL_COMPLEXITY"; then TEMPORAL_COMPLEXITY=50; fi
+if ! is_number "$SPATIAL_COMPLEXITY"; then SPATIAL_COMPLEXITY=128; fi
+
+# Get input video resolution and framerate
+INPUT_INFO=$(ffprobe -v error -select_streams v:0 \
+  -show_entries stream=width,height,r_frame_rate -of csv=p=0:s=x "$INPUT_FILE")
+
+INPUT_WIDTH=$(echo "$INPUT_INFO" | cut -d'x' -f1)
+INPUT_HEIGHT=$(echo "$INPUT_INFO" | cut -d'x' -f2)
+FPS_FRACTION=$(echo "$INPUT_INFO" | cut -d'x' -f3)
+INPUT_FPS=$(echo "scale=2; $FPS_FRACTION" | bc || echo "30.0")
+
+# Validate input values
+if ! is_number "$INPUT_WIDTH" || ! is_number "$INPUT_HEIGHT" || ! is_number "$INPUT_FPS"; then
+  echo "Error: Could not determine video dimensions or framerate"
+  exit 1
+fi
+
+echo "\nVideo analysis results:"
+echo "---------------"
+echo "Scene complexity: $SCENE_COMPLEXITY"
+echo "Temporal complexity: $TEMPORAL_COMPLEXITY"
+echo "Spatial complexity: $SPATIAL_COMPLEXITY"
+echo "Input resolution: ${INPUT_WIDTH}x${INPUT_HEIGHT}"
+echo "Input framerate: $INPUT_FPS"
+
+# Function to calculate complexity-based bits per pixel
+calculate_bpp() {
+  local width="$1"
+  local height="$2"
+
+  # Normalize complexity scores (0-1 range)
+  local temporal_score=$(echo "scale=4; if($TEMPORAL_COMPLEXITY > 0) $TEMPORAL_COMPLEXITY / 100 else 0.5" | bc)
+  local spatial_score=$(echo "scale=4; if($SPATIAL_COMPLEXITY > 0) $SPATIAL_COMPLEXITY / 255 else 0.5" | bc)
+  local scene_score=$(echo "scale=4; if($SCENE_COMPLEXITY > 0) $SCENE_COMPLEXITY / 50 else 0.5" | bc)
+
+  # Weighted complexity score
+  local complexity=$(echo "scale=4; ($temporal_score * 0.4) + ($spatial_score * 0.3) + ($scene_score * 0.3)" | bc)
+
+  # Base BPP ranges - adjusted based on resolution
+  local min_bpp
+  local max_bpp
+
+  # Resolution-based BPP ranges
+  if [ $height -le 360 ]; then
+    min_bpp=0.03
+    max_bpp=0.08
+  elif [ $height -le 540 ]; then
+    min_bpp=0.04
+    max_bpp=0.10
+  elif [ $height -le 720 ]; then
+    min_bpp=0.05
+    max_bpp=0.13
+  else
+    min_bpp=0.06
+    max_bpp=0.15
+  fi
+
+  # Calculate BPP based on complexity
+  local bpp=$(echo "scale=4; $min_bpp + ($max_bpp - $min_bpp) * $complexity" | bc)
+  echo $bpp
+}
+
+# Function to calculate optimal bitrate
+calculate_bitrate() {
+  local width="$1"
+  local height="$2"
+  local pixels=$((width * height))
+  local bpp=$(calculate_bpp $width $height)
+
+  # Calculate bitrate in kbps
+  local bitrate=$(echo "scale=0; ($pixels * $bpp * $INPUT_FPS) / 1000" | bc)
+
+  # Resolution-specific minimum bitrates
+  local min_bitrate
+  if [ $height -le 360 ]; then
+    min_bitrate=500
+  elif [ $height -le 540 ]; then
+    min_bitrate=1000
+  elif [ $height -le 720 ]; then
+    min_bitrate=1800
+  else
+    min_bitrate=2500
+  fi
+
+  # Ensure minimum bitrate
+  if [ "$bitrate" -lt $min_bitrate ]; then
+    bitrate=$min_bitrate
+  fi
+
+  echo $bitrate
+}
+
+# Generate resolution ladder
+declare -a RENDITIONS=()
+
+# Add resolutions based on input size
+if [ $INPUT_HEIGHT -ge 360 ]; then
+  RENDITIONS+=("640:360")
+fi
+
+if [ $INPUT_HEIGHT -ge 540 ]; then
+  RENDITIONS+=("960:540")
+fi
+
+if [ $INPUT_HEIGHT -ge 720 ]; then
+  RENDITIONS+=("1280:720")
+fi
+
+if [ $INPUT_HEIGHT -ge 1080 ]; then
+  RENDITIONS+=("1920:1080")
+fi
+
+# Ensure we have at least one rendition
+if [ ${#RENDITIONS[@]} -eq 0 ]; then
+  RENDITIONS+=("640:360")
+fi
+
+echo -e "\nEncoding plan:"
+echo "---------------"
+for rendition in "${RENDITIONS[@]}"; do
+  width=$(echo $rendition | cut -d: -f1)
+  height=$(echo $rendition | cut -d: -f2)
+  bitrate=$(calculate_bitrate $width $height)
+  maxrate=$((bitrate * 150 / 100))
+  bufsize=$((bitrate * 200 / 100))
+  echo "Resolution: ${width}x${height}"
+  echo "Target bitrate: ${bitrate}k"
+  echo "Max bitrate: ${maxrate}k"
+  echo "Buffer size: ${bufsize}k"
+  echo "---------------"
+done
+
+echo -e "\nStarting encode...\n"
+
+# Audio stream (only need to do this once, before the rendition loop)
+ffmpeg -y -i "$INPUT_FILE" \
+  -c:a aac \
+  -b:a 128k \
+  -ar 48000 \
+  -ac 2 \
+  -vn \
+  -hls_flags single_file \
+  -hls_segment_type fmp4 \
+  -hls_playlist_type vod \
+  -hls_time 6 \
+  "${OUTPUT_DIR}/hls/audio.m3u8"
+
+# Create HLS renditions
+for rendition in "${RENDITIONS[@]}"; do
+  width=$(echo $rendition | cut -d: -f1)
+  height=$(echo $rendition | cut -d: -f2)
+
+  bitrate=$(calculate_bitrate $width $height)
+  maxrate=$((bitrate * 150 / 100))
+  bufsize=$((bitrate * 200 / 100))
+
+  echo "Creating HLS rendition: ${width}x${height} at ${bitrate}k"
+
+  # HLS output with improved compatibility settings
+  ffmpeg -y -i "$INPUT_FILE" \
+    -c:v libx264 \
+    -preset slow \
+    -profile:v high \
+    -crf 23 \
+    -maxrate ${maxrate}k \
+    -bufsize ${bufsize}k \
+    -vf "scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:-1:-1:color=black" \
+    -g 48 \
+    -keyint_min 48 \
+    -sc_threshold 0 \
+    -an \
+    -movflags +faststart \
+    -hls_time 6 \
+    -hls_flags single_file \
+    -hls_segment_type fmp4 \
+    -hls_playlist_type vod \
+    "${OUTPUT_DIR}/hls/${height}p.m3u8"
+done
+
+# Create MP4 only if flag is set
+if [ "$CREATE_MP4" = true ]; then
+  echo "Creating MP4 output..."
+
+  # Calculate MP4 output resolution (capped at 4K)
+  MP4_WIDTH=$INPUT_WIDTH
+  MP4_HEIGHT=$INPUT_HEIGHT
+
+  if [ $MP4_HEIGHT -gt 2160 ]; then
+    scale_factor=$(echo "scale=4; 2160 / $MP4_HEIGHT" | bc)
+    MP4_HEIGHT=2160
+    MP4_WIDTH=$(echo "scale=0; $INPUT_WIDTH * $scale_factor / 1" | bc)
+    # Ensure even number for width
+    MP4_WIDTH=$((MP4_WIDTH - MP4_WIDTH % 2))
+  fi
+
+  # Calculate bitrate for MP4
+  mp4_bitrate=$(calculate_bitrate $MP4_WIDTH $MP4_HEIGHT)
+  mp4_maxrate=$((mp4_bitrate * 150 / 100))
+  mp4_bufsize=$((mp4_bitrate * 200 / 100))
+
+  echo "Creating MP4: ${MP4_WIDTH}x${MP4_HEIGHT} at ${mp4_bitrate}k"
+
+  # Create MP4 output
+  ffmpeg -y -i "$INPUT_FILE" \
+    -c:v libx264 \
+    -preset slow \
+    -profile:v high \
+    -crf 23 \
+    -maxrate ${mp4_maxrate}k \
+    -bufsize ${mp4_bufsize}k \
+    -vf "scale=${MP4_WIDTH}:${MP4_HEIGHT}" \
+    -c:a aac \
+    -b:a 192k \
+    -ar 48000 \
+    -ac 2 \
+    "${OUTPUT_DIR}/mp4/output_${MP4_HEIGHT}p.mp4"
+fi
+
+# Create master playlist with professional formatting
+echo "#EXTM3U" >"${OUTPUT_DIR}/hls/master.m3u8"
+echo "#EXT-X-VERSION:7" >>"${OUTPUT_DIR}/hls/master.m3u8"
+echo "#EXT-X-INDEPENDENT-SEGMENTS" >>"${OUTPUT_DIR}/hls/master.m3u8"
+
+# Create audio stream entry
+echo "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"program_audio_0\",LANGUAGE=\"eng\",NAME=\"Primary Audio\",AUTOSELECT=YES,DEFAULT=YES,URI=\"audio.m3u8\"" >>"${OUTPUT_DIR}/hls/master.m3u8"
+
+# Add video streams
+for rendition in "${RENDITIONS[@]}"; do
+  width=$(echo $rendition | cut -d: -f1)
+  height=$(echo $rendition | cut -d: -f2)
+  bitrate=$(calculate_bitrate $width $height)
+  avg_bandwidth=$((bitrate * 80 / 100)) # 80% of target, estimation
+
+  # Determine correct codec profile string based on resolution
+  if [ $height -ge 1080 ]; then
+    codec_profile="avc1.4d4029"
+  else
+    codec_profile="avc1.4d4028"
+  fi
+
+  echo "#EXT-X-STREAM-INF:BANDWIDTH=$(($bitrate * 1000)),AVERAGE-BANDWIDTH=$(($avg_bandwidth * 1000)),VIDEO-RANGE=SDR,CODECS=\"${codec_profile},mp4a.40.2\",RESOLUTION=${width}x${height},FRAME-RATE=${INPUT_FPS},AUDIO=\"program_audio_0\"" >>"${OUTPUT_DIR}/hls/master.m3u8"
+  echo "${height}p.m3u8" >>"${OUTPUT_DIR}/hls/master.m3u8"
+done
