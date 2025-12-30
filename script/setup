@@ -158,6 +158,7 @@ install_claude_config() {
   link_file "$DOTFILES_ROOT/claude/settings.json" "$HOME/.claude/settings.json"
   link_file "$DOTFILES_ROOT/claude/commands" "$HOME/.claude/commands"
   link_file "$DOTFILES_ROOT/claude/agents" "$HOME/.claude/agents"
+  link_file "$DOTFILES_ROOT/claude/skills" "$HOME/.claude/skills"
 }
 
 install_oh_my_zsh
