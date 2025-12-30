@@ -2,6 +2,7 @@
   "includeCoAuthoredBy": false,
   "permissions": {
     "allow": [
+      "Skill(codex-discussion)",
       "Bash(mix test)",
       "Bash(mix test:*)",
       "Bash(mix format)",
@@ -23,7 +24,11 @@
       "Bash(gh pr diff:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
-      "WebFetch(domain:hexdocs.pm)"
+      "WebFetch(domain:hexdocs.pm)",
+      "Bash(~/.claude/skills/codex-discussion/scripts/check-codex.sh)",
+      "Bash(~/.claude/skills/codex-discussion/scripts/discuss.sh:*)",
+      "Bash(CODEX_CONTEXT_DIR:*)",
+      "Bash(CODEX_MODEL:*)"
     ],
     "deny": []
   },
