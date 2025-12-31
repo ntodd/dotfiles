@@ -53,7 +53,7 @@ else
         exit 1
     fi
 
-    CMD=(codex exec -s read-only)
+    CMD=(codex exec -s read-only --enable web_search_request)
 
     # Add model if specified
     if [ -n "$CODEX_MODEL" ]; then
