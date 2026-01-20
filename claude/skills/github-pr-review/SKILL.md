@@ -142,6 +142,76 @@ When using heredocs with JSON:
 - Escape backticks as `\`` in the body
 - Escape newlines as `\n`
 
+## Writing Good Review Comments
+
+### Guidelines
+
+1. **Explain the "why"** - Don't just say what to change; explain why it matters
+   - Bad: "Remove this table"
+   - Good: "This separate UserIdentities table adds unnecessary complexity. Storing `azure_id` directly on User simplifies lookup, creation, and the mental model."
+
+2. **Provide concrete code examples** - Give snippets the author can use directly
+   - Include actual code they can copy/paste
+   - Show the before/after when helpful
+
+3. **Reference existing patterns** - Point to other code as a model
+   - "See snap's Accounts context for the simpler pattern"
+   - "Match the pattern used in `lib/app/user_auth.ex`"
+
+4. **Use numbered action items** - Make complex changes easy to follow
+   - Break down multi-step changes into ordered lists
+   - Each item should be a discrete, actionable task
+
+5. **Bold key terms** - Help readers scan quickly
+   - **This module is dead code** - grabs attention
+   - **Recommendation:** - signals actionable advice
+
+### Example: Inline Comment
+
+```
+Since we're only using Azure AD (not multiple OAuth providers), this separate
+UserIdentities table adds unnecessary complexity.
+
+Let's delete this file and the `user_identities` table. Instead, we should store `azure_id`
+directly on the User schema like Snap does.
+
+This simplifies:
+- User lookup (direct query vs join)
+- User creation (one insert vs transaction with two inserts)
+- Mental model (user = user, not user + identities)
+```
+
+### Example: Summary Review
+
+When submitting a review with `REQUEST_CHANGES`, write a summary that ties inline comments together:
+
+```
+The Phoenix 1.8 and Tailwind 4 upgrade looks good, but the Ueberauth/OAuth
+implementation needs to be aligned with the patterns we use in Snap.
+
+**Key changes needed:**
+
+1. **Simplify to Azure-only auth** - Remove the multi-provider UserIdentities
+   table pattern. Store `azure_id` directly on User like snap does.
+
+2. **Add user data sync on login** - Extract and store roles, profile photo,
+   and timestamps from Azure. Update user data on every login.
+
+3. **Match Snap's Accounts/UserAuth patterns** - Use `get_user_by_azure_id`,
+   `register_user`, `update_user`, `touch_last_sign_in_at`.
+
+4. **Remove dead code** - Delete `InitAssigns` (never mounted) and the custom
+   Azure strategy wrapper.
+
+See inline comments for specific file changes needed.
+```
+
+**Key elements:**
+- Opens with what's good about the PR (acknowledge positive work)
+- Lists key changes as numbered items with bold headers
+- Each item has a brief explanation
+- Points to inline comments for details
+
 ## Workflow
 
 1. **Initialize** with a user request to add PR review comments to PR after doing a review (this process is out of scope for this skill,
