@@ -71,9 +71,9 @@ else
   export DOTFILES=$HOME/.dotfiles
 fi
 
-# all of our zsh files
+# all of our zsh files (exclude non-shell directories)
 typeset -U config_files
-config_files=($DOTFILES/**/*.zsh)
+config_files=($DOTFILES/(^(claude|script|bin|ghostty))/**/*.zsh(N))
 
 # Source each file in $config_files
 for file in "${config_files[@]}"; do
