@@ -25,20 +25,5 @@ pane_frames false
 // Styled and colored underlines
 styled_underlines true
 
-// One Half Dark theme (matches Ghostty config)
-themes {
-    one-half-dark {
-        fg 220 223 228
-        bg 40 44 52
-        black 39 44 51
-        red 224 108 117
-        green 152 195 121
-        yellow 229 192 123
-        blue 97 175 239
-        magenta 198 120 221
-        cyan 86 182 194
-        white 220 223 228
-        orange 209 154 102
-    }
-}
-theme "one-half-dark"
+// No custom theme - lets Ghostty's One Half Dark colors pass through
+// and preserves visible text selection (Zellij themes break mouse selection)
