@@ -17,9 +17,9 @@ set -g focus-events on
 setw -g mode-keys vi
 
 # add truecolor support
-set-option -ga terminal-overrides ",xterm-256color:Tc"
+set-option -ga terminal-overrides ",xterm-256color:Tc,xterm-ghostty:Tc"
 # default terminal is 256 colors
-set -g default-terminal "screen-256color"
+set -g default-terminal "tmux-256color"
 
 # start window and pane ids at 1 instead of 0
 set -g base-index 1
