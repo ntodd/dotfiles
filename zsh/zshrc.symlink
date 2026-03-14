@@ -72,6 +72,7 @@ else
 fi
 
 # all of our zsh files (exclude non-shell directories)
+setopt extended_glob
 typeset -U config_files
 config_files=($DOTFILES/(^(claude|script|bin|ghostty))/**/*.zsh(N))
 
