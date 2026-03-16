@@ -1,30 +1,46 @@
-I have already staged the changes I want to commit. Commit the staged changes on the current branch without adding or
-removing any files.
+---
+description: Commit already-staged changes with a quality message
+argument-hint: [instructions]
+---
 
-When committing, use this git commit template:
+# Commit Staged Changes
 
-```
-Capitalized, short (50 chars or less) summary
+The user has already staged exactly what they want to commit. Review the staged changes, prepare a high-quality commit message, and commit. Follow the `git-workflow` skill for commit message conventions.
 
-More detailed explanatory text, if necessary.  Wrap it to about 72
-characters or so.  In some contexts, the first line is treated as the
-subject of an email and the rest of the text as the body.  The blank
-line separating the summary from the body is critical (unless you omit
-the body entirely); tools like rebase will confuse you if you run the
-two together.
+## Workflow
 
-Write your commit message in the imperative: "Fix bug" and not "Fixed bug"
-or "Fixes bug."  This convention matches up with commit messages generated
-by commands like git merge and git revert.
+1. **Review staged changes**:
+   - Run `git status` to see which files are staged
+   - Run `git diff --staged` to see the actual changes
+   - Run `git log --oneline -5` to understand recent commit message style
 
-Further paragraphs come after blank lines.
+2. **Analyze the changes**:
+   - Understand what changed and why
+   - Identify the primary purpose (bug fix, feature, refactor, docs, etc.)
 
-- Bullet points are okay, too
+3. **Commit**:
 
-- Typically a hyphen or asterisk is used for the bullet, followed by a
-  single space, with blank lines in between, but conventions vary here
+   ```bash
+   # Create a new commit
+   git commit -m "Your commit message"
 
-- Use a hanging indent
-```
+   # Amend the current commit (if user asks to amend)
+   git commit --amend -m "Updated commit message"
+
+   # Amend on a stacked branch (restacks descendants)
+   gt modify -m "Updated commit message"
+   ```
+
+4. **Verify**: Run `git status` after committing to confirm success
+
+## Important Notes
+
+- **Trust the staged changes** - The user has already decided what to commit
+- **Never add additional files** - Only commit what's already staged
+- **Focus on the message** - Craft a clear, informative commit message following the `git-workflow` skill conventions
+- **Match repo style** - Look at recent git history for style cues
+- **Use `gt modify` only when amending in the middle of a stack** - it auto-restacks descendants
+
+---
 
 Additional instructions (if any): $ARGUMENTS
