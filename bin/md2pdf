@@ -1,0 +1,338 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "weasyprint>=63",
+#     "markdown>=3.6",
+# ]
+# ///
+"""Render a markdown document to a styled PDF via WeasyPrint.
+
+Self-contained: only requires `uv` on PATH. Run `md2pdf --help`
+for options.
+
+macOS note: WeasyPrint dlopens Pango/Cairo at runtime. Install with
+`brew install pango`; this script then re-execs itself with
+`DYLD_FALLBACK_LIBRARY_PATH` pointing at Homebrew's lib dir.
+"""
+
+import argparse
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def _ensure_macos_dyld_path() -> None:
+    """On macOS, point dyld at Homebrew's lib dir so WeasyPrint can find Pango.
+
+    dyld reads DYLD_FALLBACK_LIBRARY_PATH at process start, so we re-exec
+    ourselves once if it's not already set.
+    """
+    if sys.platform != "darwin":
+        return
+    if os.environ.get("_MD2PDF_DYLD_SET") == "1":
+        return
+    brew = shutil.which("brew")
+    if not brew:
+        return
+    try:
+        prefix = subprocess.check_output([brew, "--prefix"], text=True).strip()
+    except subprocess.CalledProcessError:
+        return
+    lib_dir = Path(prefix) / "lib"
+    if not (lib_dir / "libpango-1.0.dylib").exists():
+        sys.exit(f"Pango not found at {lib_dir}. Run: brew install pango")
+    env = os.environ.copy()
+    existing = env.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+    env["DYLD_FALLBACK_LIBRARY_PATH"] = (
+        f"{lib_dir}:{existing}" if existing else str(lib_dir)
+    )
+    env["_MD2PDF_DYLD_SET"] = "1"
+    os.execvpe(sys.executable, [sys.executable, __file__, *sys.argv[1:]], env)
+
+
+_ensure_macos_dyld_path()
+
+import markdown  # noqa: E402
+from weasyprint import CSS, HTML  # noqa: E402
+
+PAGE_SIZES = ("Letter", "A4", "Legal")
+TITLE_ALIGNS = ("left", "center")
+TEXT_ALIGNS = ("left", "justify")
+
+BASE_CSS = r"""
+html { font-size: 10.5pt; }
+
+body {
+    font-family: "Georgia", "Charter", "Cambria", serif;
+    line-height: 1.55;
+    color: #1a1a1a;
+    hyphens: auto;
+}
+
+h1, h2, h3, h4 {
+    font-family: "Helvetica Neue", "Helvetica", "Arial", sans-serif;
+    color: #0a2540;
+    line-height: 1.25;
+    page-break-after: avoid;
+    text-align: left;
+}
+
+h1 {
+    font-size: 28pt;
+    font-weight: 600;
+    margin: 0 0 0.45em;
+    letter-spacing: -0.5pt;
+}
+
+/* Lead-in paragraphs that follow the title (Project / Version / Dates) */
+body > h1 + p,
+body > h1 + p + p,
+body > h1 + p + p + p,
+body > h1 + p + p + p + p {
+    font-size: 11pt;
+    margin: 0.15em 0;
+}
+
+h2 {
+    font-size: 14pt;
+    font-weight: 600;
+    margin-top: 1.6em;
+    margin-bottom: 0.5em;
+    border-bottom: 1px solid #d0d7de;
+    padding-bottom: 0.2em;
+}
+
+h3 {
+    font-size: 11.5pt;
+    font-weight: 600;
+    color: #0f3a6b;
+    margin-top: 1.15em;
+    margin-bottom: 0.35em;
+}
+
+p {
+    margin: 0 0 0.65em;
+    orphans: 3;
+    widows: 3;
+}
+
+strong { color: #0a2540; }
+
+hr {
+    border: none;
+    border-top: 1px solid #d0d7de;
+    margin: 1.4em 0;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.8em 0 1em;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+}
+
+thead { background-color: #eef2f7; }
+
+th, td {
+    border: 1px solid #cbd5e1;
+    padding: 5pt 8pt;
+    vertical-align: top;
+    text-align: left;
+    hyphens: auto;
+}
+
+th {
+    font-family: "Helvetica Neue", sans-serif;
+    font-weight: 600;
+    color: #0a2540;
+}
+
+ul, ol {
+    margin: 0.3em 0 0.85em 1.4em;
+    padding: 0;
+}
+li { margin-bottom: 0.25em; }
+
+a { color: #0a4ea2; text-decoration: none; }
+"""
+
+
+def _css_string_literal(text: str) -> str:
+    """Quote a string for use as a CSS `content:` value."""
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def build_alignment_css(title_align: str, text_align: str) -> str:
+    """Override alignment of body text and the title-block (h1 + lead-in <p>s)."""
+    return f"""
+body {{ text-align: {text_align}; }}
+h1 {{ text-align: {title_align}; }}
+body > h1 + p,
+body > h1 + p + p,
+body > h1 + p + p + p,
+body > h1 + p + p + p + p {{ text-align: {title_align}; }}
+"""
+
+
+def build_page_css(page_size: str, footer: str, page_numbers: bool) -> str:
+    bottom_left = (
+        f"@bottom-left {{ content: {_css_string_literal(footer)};"
+        " font-family: Georgia, serif; font-size: 8.5pt; color: #555; }"
+        if footer
+        else ""
+    )
+    bottom_right = (
+        '@bottom-right { content: "Page " counter(page) " of " counter(pages);'
+        " font-family: Georgia, serif; font-size: 8.5pt; color: #555; }"
+        if page_numbers
+        else ""
+    )
+    return f"""
+@page {{
+    size: {page_size};
+    margin: 0.95in 0.95in 1.05in 0.95in;
+    {bottom_left}
+    {bottom_right}
+}}
+@page :first {{
+    margin-top: 1.5in;
+    @bottom-left  {{ content: none; }}
+    @bottom-right {{ content: none; }}
+}}
+"""
+
+
+def render(
+    input_path: Path,
+    output_path: Path,
+    *,
+    md_text: str,
+    page_size: str,
+    footer: str,
+    page_numbers: bool,
+    title_align: str,
+    text_align: str,
+) -> None:
+    html_body = markdown.markdown(
+        md_text,
+        extensions=["extra", "sane_lists", "smarty"],
+        output_format="html",
+    )
+    html_doc = (
+        '<!DOCTYPE html>\n'
+        '<html lang="en">\n'
+        '<head><meta charset="utf-8">'
+        f'<title>{input_path.stem}</title></head>\n'
+        f'<body>{html_body}</body>\n'
+        '</html>\n'
+    )
+    css_text = (
+        build_page_css(page_size, footer, page_numbers)
+        + BASE_CSS
+        + build_alignment_css(title_align, text_align)
+    )
+    HTML(string=html_doc, base_url=str(input_path.parent)).write_pdf(
+        str(output_path),
+        stylesheets=[CSS(string=css_text)],
+    )
+
+
+def _first_h1(md_text: str) -> str:
+    """Return the first ATX-style H1 from a markdown document, or "" if none."""
+    match = re.search(r"^#\s+(.+?)\s*$", md_text, flags=re.MULTILINE)
+    return match.group(1).strip() if match else ""
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="md2pdf",
+        description="Render a markdown document to a styled PDF via WeasyPrint.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "input",
+        type=Path,
+        nargs="+",
+        metavar="INPUT",
+        help="Path to one or more input markdown files.",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=Path,
+        default=argparse.SUPPRESS,
+        help="Output PDF path (default: <INPUT>.pdf, alongside the input). "
+             "Only valid with a single INPUT.",
+    )
+    parser.add_argument(
+        "--page-size",
+        choices=PAGE_SIZES,
+        default="Letter",
+        help="Page size.",
+    )
+    parser.add_argument(
+        "--footer",
+        default=argparse.SUPPRESS,
+        help='Footer text shown bottom-left of every page after page 1 '
+             '(default: the document\'s first H1). Pass "" to suppress.',
+    )
+    parser.add_argument(
+        "--no-page-numbers",
+        action="store_false",
+        dest="page_numbers",
+        help="Suppress the bottom-right page-number indicator.",
+    )
+    parser.add_argument(
+        "--title-align",
+        choices=TITLE_ALIGNS,
+        default="left",
+        help="Alignment of the title (first H1) and the lead-in paragraphs that follow it.",
+    )
+    parser.add_argument(
+        "--text-align",
+        choices=TEXT_ALIGNS,
+        default="left",
+        help='Body text alignment. "left" is ragged-right; "justify" fills the line.',
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+
+    inputs: list[Path] = args.input
+    explicit_output: Path | None = getattr(args, "output", None)
+    if explicit_output is not None and len(inputs) > 1:
+        sys.exit("Error: -o/--output cannot be used with multiple input files.")
+
+    for input_path in inputs:
+        if not input_path.is_file():
+            sys.exit(f"Error: input file not found: {input_path}")
+
+        output_path = explicit_output or input_path.with_suffix(".pdf")
+        md_text = input_path.read_text(encoding="utf-8")
+        footer = getattr(args, "footer", None)
+        if footer is None:
+            footer = _first_h1(md_text)
+
+        print(f"Rendering: {input_path}")
+        print(f"       -> {output_path}")
+        render(
+            input_path,
+            output_path,
+            md_text=md_text,
+            page_size=args.page_size,
+            footer=footer,
+            page_numbers=args.page_numbers,
+            title_align=args.title_align,
+            text_align=args.text_align,
+        )
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()
