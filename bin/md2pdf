@@ -82,10 +82,10 @@ h1, h2, h3, h4 {
 }
 
 h1 {
-    font-size: 28pt;
+    font-size: 22pt;
     font-weight: 600;
-    margin: 0 0 0.45em;
-    letter-spacing: -0.5pt;
+    margin: 0 0 0.9em;
+    letter-spacing: -0.3pt;
 }
 
 /* Lead-in paragraphs that follow the title (Project / Version / Dates) */
