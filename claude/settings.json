@@ -34,5 +34,6 @@
     "defaultMode": "auto"
   },
   "alwaysThinkingEnabled": true,
+  "effortLevel": "high",
   "skipAutoPermissionPrompt": true
 }

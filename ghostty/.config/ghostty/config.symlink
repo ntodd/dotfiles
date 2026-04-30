@@ -9,7 +9,7 @@
 theme = "One Half Dark"
 font-family = "MesloLGS NF Regular"
 font-size = 13
-window-padding-x = 8
+window-padding-x = 10
 window-padding-y = 4
 
 # keybind = global:cmd+grave_accent=toggle_quick_terminal
