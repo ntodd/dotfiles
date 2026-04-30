@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -221,7 +222,7 @@ def render(
     page_numbers: bool,
     title_align: str,
     text_align: str,
-) -> None:
+) -> int:
     md_text = _PAGEBREAK_RE.sub(_PAGEBREAK_HTML, md_text)
     html_body = markdown.markdown(
         md_text,
@@ -241,10 +242,19 @@ def render(
         + BASE_CSS
         + build_alignment_css(title_align, text_align)
     )
-    HTML(string=html_doc, base_url=str(input_path.parent)).write_pdf(
-        str(output_path),
+    document = HTML(string=html_doc, base_url=str(input_path.parent)).render(
         stylesheets=[CSS(string=css_text)],
     )
+    document.write_pdf(str(output_path))
+    return len(document.pages)
+
+
+def _format_size(num_bytes: int) -> str:
+    if num_bytes < 1024:
+        return f"{num_bytes} B"
+    if num_bytes < 1024 * 1024:
+        return f"{num_bytes / 1024:.1f} KB"
+    return f"{num_bytes / (1024 * 1024):.1f} MB"
 
 
 def _first_h1(md_text: str) -> str:
@@ -325,8 +335,9 @@ def main(argv: list[str] | None = None) -> None:
             footer = _first_h1(md_text)
 
         print(f"Rendering: {input_path}")
-        print(f"       -> {output_path}")
-        render(
+        print(f"        -> {output_path}")
+        start = time.perf_counter()
+        page_count = render(
             input_path,
             output_path,
             md_text=md_text,
@@ -336,6 +347,10 @@ def main(argv: list[str] | None = None) -> None:
             title_align=args.title_align,
             text_align=args.text_align,
         )
+        elapsed = time.perf_counter() - start
+        size = _format_size(output_path.stat().st_size)
+        pages_label = "page" if page_count == 1 else "pages"
+        print(f"           {page_count} {pages_label}, {size}, {elapsed:.2f}s")
     print("Done.")
 
 
