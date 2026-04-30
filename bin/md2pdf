@@ -207,6 +207,10 @@ def build_page_css(page_size: str, footer: str, page_numbers: bool) -> str:
 """
 
 
+_PAGEBREAK_RE = re.compile(r"^[ \t]*<!--\s*pagebreak\s*-->[ \t]*$", flags=re.MULTILINE)
+_PAGEBREAK_HTML = '\n\n<div style="page-break-before: always;"></div>\n\n'
+
+
 def render(
     input_path: Path,
     output_path: Path,
@@ -218,6 +222,7 @@ def render(
     title_align: str,
     text_align: str,
 ) -> None:
+    md_text = _PAGEBREAK_RE.sub(_PAGEBREAK_HTML, md_text)
     html_body = markdown.markdown(
         md_text,
         extensions=["extra", "sane_lists", "smarty"],
