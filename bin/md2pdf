@@ -14,14 +14,20 @@ for options.
 macOS note: WeasyPrint dlopens Pango/Cairo at runtime. Install with
 `brew install pango`; this script then re-execs itself with
 `DYLD_FALLBACK_LIBRARY_PATH` pointing at Homebrew's lib dir.
+
+Mermaid: ```mermaid fences are pre-rendered to SVG by shelling out to
+`mmdc` (mermaid-cli). Install with `brew install mermaid-cli` if your
+documents contain mermaid blocks.
 """
 
 import argparse
+import html
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -160,6 +166,13 @@ ul, ol {
 li { margin-bottom: 0.25em; }
 
 a { color: #0a4ea2; text-decoration: none; }
+
+img.mermaid-diagram {
+    display: block;
+    max-width: 100%;
+    margin: 0.9em auto;
+    page-break-inside: avoid;
+}
 """
 
 
@@ -211,6 +224,45 @@ def build_page_css(page_size: str, footer: str, page_numbers: bool) -> str:
 _PAGEBREAK_RE = re.compile(r"^[ \t]*<!--\s*pagebreak\s*-->[ \t]*$", flags=re.MULTILINE)
 _PAGEBREAK_HTML = '\n\n<div style="page-break-before: always;"></div>\n\n'
 
+_MERMAID_RE = re.compile(
+    r"^```mermaid[ \t]*\n(.*?)\n```[ \t]*$",
+    flags=re.MULTILINE | re.DOTALL,
+)
+
+
+def _render_mermaid_blocks(md_text: str, work_dir: Path) -> str:
+    """Replace ```mermaid fences with <img> tags pointing to SVGs rendered by mmdc."""
+    if not _MERMAID_RE.search(md_text):
+        return md_text
+    mmdc = shutil.which("mmdc")
+    if mmdc is None:
+        sys.exit(
+            "Error: document contains mermaid blocks but `mmdc` was not found on PATH.\n"
+            "Install with: brew install mermaid-cli"
+        )
+    counter = 0
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal counter
+        counter += 1
+        src = work_dir / f"mermaid_{counter}.mmd"
+        out = work_dir / f"mermaid_{counter}.png"
+        src.write_text(match.group(1), encoding="utf-8")
+        result = subprocess.run(
+            [mmdc, "-i", str(src), "-o", str(out), "-b", "transparent", "-s", "2"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0 or not out.exists():
+            sys.exit(
+                f"mmdc failed for mermaid block #{counter}:\n"
+                f"{result.stderr or result.stdout}"
+            )
+        url = html.escape(out.resolve().as_uri(), quote=True)
+        return f'<img src="{url}" class="mermaid-diagram" alt="mermaid diagram {counter}">'
+
+    return _MERMAID_RE.sub(replace, md_text)
+
 
 def render(
     input_path: Path,
@@ -224,29 +276,31 @@ def render(
     text_align: str,
 ) -> int:
     md_text = _PAGEBREAK_RE.sub(_PAGEBREAK_HTML, md_text)
-    html_body = markdown.markdown(
-        md_text,
-        extensions=["extra", "sane_lists", "smarty"],
-        output_format="html",
-    )
-    html_doc = (
-        '<!DOCTYPE html>\n'
-        '<html lang="en">\n'
-        '<head><meta charset="utf-8">'
-        f'<title>{input_path.stem}</title></head>\n'
-        f'<body>{html_body}</body>\n'
-        '</html>\n'
-    )
-    css_text = (
-        build_page_css(page_size, footer, page_numbers)
-        + BASE_CSS
-        + build_alignment_css(title_align, text_align)
-    )
-    document = HTML(string=html_doc, base_url=str(input_path.parent)).render(
-        stylesheets=[CSS(string=css_text)],
-    )
-    document.write_pdf(str(output_path))
-    return len(document.pages)
+    with tempfile.TemporaryDirectory(prefix="md2pdf-") as tmpdir:
+        md_text = _render_mermaid_blocks(md_text, Path(tmpdir))
+        html_body = markdown.markdown(
+            md_text,
+            extensions=["extra", "sane_lists", "smarty"],
+            output_format="html",
+        )
+        html_doc = (
+            '<!DOCTYPE html>\n'
+            '<html lang="en">\n'
+            '<head><meta charset="utf-8">'
+            f'<title>{input_path.stem}</title></head>\n'
+            f'<body>{html_body}</body>\n'
+            '</html>\n'
+        )
+        css_text = (
+            build_page_css(page_size, footer, page_numbers)
+            + BASE_CSS
+            + build_alignment_css(title_align, text_align)
+        )
+        document = HTML(string=html_doc, base_url=str(input_path.parent)).render(
+            stylesheets=[CSS(string=css_text)],
+        )
+        document.write_pdf(str(output_path))
+        return len(document.pages)
 
 
 def _format_size(num_bytes: int) -> str:
