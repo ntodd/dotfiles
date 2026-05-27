@@ -156,9 +156,11 @@ install_claude_config() {
   
   # Symlink individual Claude configuration items
   link_file "$DOTFILES_ROOT/claude/settings.json" "$HOME/.claude/settings.json"
+  link_file "$DOTFILES_ROOT/claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
   link_file "$DOTFILES_ROOT/claude/commands" "$HOME/.claude/commands"
   link_file "$DOTFILES_ROOT/claude/agents" "$HOME/.claude/agents"
   link_file "$DOTFILES_ROOT/claude/skills" "$HOME/.claude/skills"
+  link_file "$DOTFILES_ROOT/claude/hooks" "$HOME/.claude/hooks"
 }
 
 install_oh_my_zsh

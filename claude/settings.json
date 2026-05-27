@@ -35,5 +35,20 @@
   },
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/humanize-reminder.sh",
+            "if": "Bash(gh *)",
+            "statusMessage": "Checking for humanizer reminder..."
+          }
+        ]
+      }
+    ]
+  }
 }
