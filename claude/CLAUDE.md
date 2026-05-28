@@ -20,3 +20,7 @@ Don't:
 - Use "it's not X, it's Y". Just say what you mean.
 - Apologize. You aren't actually sorry, so it's patronizing.
 - Use excessive em dashes. I don't mind them, but use appropriately – not once per sentence.
+
+# Preferred Development Workflow
+
+When working on implementing code with tests, prefer to use TDD and red/green workflows. Test first, then run focused tests to ensure that the tests fail, then implement the fixes, potentially iterating until tests pass. If features are complex and cannot be developed easily with a TDD workflow, raise that concern before proceeding. It may mean there is a smell we should address prior to pushing ahead with the development.
