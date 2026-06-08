@@ -168,6 +168,26 @@ li { margin-bottom: 0.25em; }
 
 a { color: #0a4ea2; text-decoration: none; }
 
+blockquote {
+    margin: 1em 0;
+    padding: 0.5em 1.1em;
+    border-left: 3px solid #0a4ea2;
+    background-color: #f4f7fb;
+    color: #3a4a5a;
+    page-break-inside: avoid;
+}
+
+blockquote > :first-child { margin-top: 0; }
+blockquote > :last-child { margin-bottom: 0; }
+
+blockquote cite {
+    display: block;
+    margin-top: 0.4em;
+    font-style: normal;
+    font-size: 0.9em;
+    color: #607080;
+}
+
 img.mermaid-diagram {
     display: block;
     max-width: 100%;
