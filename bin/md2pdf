@@ -4,6 +4,7 @@
 # dependencies = [
 #     "weasyprint>=63",
 #     "markdown>=3.6",
+#     "pillow>=10",
 # ]
 # ///
 """Render a markdown document to a styled PDF via WeasyPrint.
@@ -230,6 +231,28 @@ _MERMAID_RE = re.compile(
 )
 
 
+def _optimize_png(path: Path) -> None:
+    """Shrink a rendered mermaid PNG in place; skip silently on any failure.
+
+    Mermaid output is flat-color line art with only a handful of distinct
+    hues, so collapsing it to a 256-entry adaptive palette typically cuts the
+    file ~70% while leaving anti-aliased edges visually untouched (the palette
+    never fills, so there's room for the edge gradients). Any failure leaves
+    the original PNG intact.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return
+    try:
+        with Image.open(path) as img:
+            rgba = img.convert("RGBA")
+            quantized = rgba.quantize(colors=256, method=Image.FASTOCTREE)
+            quantized.save(path, format="PNG", optimize=True)
+    except Exception:
+        pass
+
+
 def _render_mermaid_blocks(md_text: str, work_dir: Path) -> str:
     """Replace ```mermaid fences with <img> tags pointing to SVGs rendered by mmdc."""
     if not _MERMAID_RE.search(md_text):
@@ -249,7 +272,7 @@ def _render_mermaid_blocks(md_text: str, work_dir: Path) -> str:
         out = work_dir / f"mermaid_{counter}.png"
         src.write_text(match.group(1), encoding="utf-8")
         result = subprocess.run(
-            [mmdc, "-i", str(src), "-o", str(out), "-b", "transparent", "-s", "2"],
+            [mmdc, "-i", str(src), "-o", str(out), "-b", "transparent", "-s", "4"],
             capture_output=True,
             text=True,
         )
@@ -258,6 +281,7 @@ def _render_mermaid_blocks(md_text: str, work_dir: Path) -> str:
                 f"mmdc failed for mermaid block #{counter}:\n"
                 f"{result.stderr or result.stdout}"
             )
+        _optimize_png(out)
         url = html.escape(out.resolve().as_uri(), quote=True)
         return f'<img src="{url}" class="mermaid-diagram" alt="mermaid diagram {counter}">'
 
