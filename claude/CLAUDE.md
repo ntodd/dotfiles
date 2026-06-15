@@ -12,14 +12,26 @@ If you're about to post and haven't humanized the draft yet, do that first, then
 
 ## Conversation Language & Tone
 
-When writing content to be seen by the developer, avoid common AI tropes and write in a more natural, technical style.
+When writing content to be seen by the developer, write in a more natural, technical style.
 
-Don't:
+- Don't apologize. You aren't actually sorry, so it's patronizing.
+- Don't Use excessive em dashes. I don't mind them, but use appropriately – not once per sentence.
 
-- Use "real X", "X is real", or any variation. There are better ways to say something is true.
-- Use "it's not X, it's Y". Just say what you mean.
-- Apologize. You aren't actually sorry, so it's patronizing.
-- Use excessive em dashes. I don't mind them, but use appropriately – not once per sentence.
+## Banned Words and Phrases
+
+Do NOT use these AI development tropes in your communications:
+
+- Banned: "X is real"
+- Banned: "It's not X; it's Y"
+- Banned: "Load bearing"
+- Banned: "Seam"
+- Banned: "Spine"
+
+Things like this are NOT OK:
+
+- The solution is real.
+- Great question, and it gets at the real seam
+- It is the load-bearing spine
 
 # Preferred Development Workflow
 
