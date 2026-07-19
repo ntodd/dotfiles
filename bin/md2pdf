@@ -141,10 +141,29 @@ table {
     border-collapse: collapse;
     margin: 0.8em 0 1em;
     font-size: 9.5pt;
-    page-break-inside: avoid;
+    /* Large tables should flow across pages instead of leaving a heading
+       stranded at the bottom of the preceding page. */
+    break-inside: auto;
+    page-break-inside: auto;
 }
 
-thead { background-color: #eef2f7; }
+thead {
+    background-color: #eef2f7;
+    display: table-header-group;
+}
+
+tbody {
+    break-inside: auto;
+    page-break-inside: auto;
+}
+
+tfoot { display: table-footer-group; }
+
+/* Split between rows, not through the middle of a row. */
+tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
 
 th, td {
     border: 1px solid #cbd5e1;
