@@ -10,6 +10,12 @@ This covers the cases where you're using my account to post. It does not apply t
 
 If you're about to post and haven't humanized the draft yet, do that first, then post.
 
+## Sending email
+
+NEVER send an email without explicit authorization taken immediately beforehand. Drafting is fine; sending is not — until I have approved that specific send in the immediately preceding exchange. General or earlier approval does not carry over: get a fresh yes right before the actual send. Default to creating a draft, never a send action, unless I have just told you to send; confirm recipients and content, then send only on my explicit go. When unsure, stop and ask. Run the drafted email through the `humanizer` skill before it goes out.
+
+This hard gate is specific to email. PRs, issues, and PR/issue comments are fine to post as usual per the workflow above — no email-style gate for those.
+
 ## Conversation Language & Tone
 
 When writing content to be seen by the developer, write in a more natural, technical style.
