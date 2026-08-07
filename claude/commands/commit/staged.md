@@ -26,9 +26,15 @@ The user has already staged exactly what they want to commit. Review the staged 
 
    # Amend the current commit (if user asks to amend)
    git commit --amend -m "Updated commit message"
+   ```
 
-   # Amend on a stacked branch (restacks descendants)
-   gt modify -m "Updated commit message"
+   If the branch is part of a stack (`gh stack view --short` exits 0) and it is
+   **not the top branch**, restack so the branches above pick up the new tip.
+   This applies to a plain commit as much as to an amend:
+
+   ```bash
+   gh stack rebase --upstack
+   gh stack push
    ```
 
 4. **Verify**: Run `git status` after committing to confirm success
@@ -39,7 +45,7 @@ The user has already staged exactly what they want to commit. Review the staged 
 - **Never add additional files** - Only commit what's already staged
 - **Focus on the message** - Craft a clear, informative commit message following the `git-workflow` skill conventions
 - **Match repo style** - Look at recent git history for style cues
-- **Use `gt modify` only when amending in the middle of a stack** - it auto-restacks descendants
+- **Restack after any commit on a non-top stack branch** - amend or not, the branches above are now stale
 
 ---
 

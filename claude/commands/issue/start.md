@@ -64,7 +64,7 @@ Once the plan is confirmed:
 2. **Sync with main**:
 
    ```bash
-   gt sync
+   git checkout main && git pull --ff-only
    ```
 
 3. **Create a branch** following the `git-workflow` skill conventions. Determine the branch type from the issue type:
@@ -73,9 +73,19 @@ Once the plan is confirmed:
    - Task -> `task/$ARGUMENTS-<description>`
    - Large feature needing stacked PRs -> `stack/$ARGUMENTS-<description>`
 
+   For a single PR:
+
    ```bash
-   gt create <branch-name> -m "<commit message>" -a
+   git checkout -b <branch-name>
    ```
+
+   For a stacked feature, start the stack instead (see the `stacked-pr` skill):
+
+   ```bash
+   gh stack init stack/$ARGUMENTS-<first-layer>
+   ```
+
+   Requires the extension: `gh extension install github/gh-stack`.
 
 4. **Update the issue** with the implementation plan if significant new context was gathered during analysis:
 
