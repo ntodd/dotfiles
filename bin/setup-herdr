@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+#
+# setup-herdr — personal agent environment for a GitHub Codespace
+#
+# Installs and starts everything needed to reach this codespace from Moshi
+# on a phone (Tailscale + mosh) and drive coding agents with herdr:
+#
+#   tailscale    joins your tailnet with Tailscale SSH enabled. Node identity
+#                lives in /workspaces/.tailscale, which survives stop/start
+#                AND full container rebuilds, so the codespace keeps the same
+#                tailnet IP for its whole life.
+#   mosh         roaming-friendly terminal transport (apt)
+#   herdr        agent multiplexer (~/.local/bin)
+#   moshi-hook   pushes agent approvals/notifications to the Moshi app
+#
+# Everything is scoped to this codespace and your $HOME. Nothing touches the
+# repo or devcontainer, so teammates are unaffected.
+#
+# Idempotent: re-run any time. Required after a container rebuild (only
+# /workspaces survives those, so binaries need reinstalling — the tailscale
+# identity is picked back up automatically).
+#
+# Optional env vars (personal Codespaces secrets work well for these):
+#   TS_AUTHKEY            reusable, NON-ephemeral tailscale auth key.
+#                         Without it you get a browser login URL instead.
+#   MOSHI_PAIRING_TOKEN   pairing token from the Moshi app. Without it the
+#                         pair/install steps are printed for manual runs.
+#   HERDR_TS_HOSTNAME     tailscale hostname (default: cs-<repo name>)
+
+set -euo pipefail
+
+TS_STATE_DIR=/workspaces/.tailscale
+
+info() {
+  printf "\r  [ \033[00;34m..\033[0m ] $1\n"
+}
+
+warn() {
+  printf "\r  [ \033[0;33m??\033[0m ] $1\n"
+}
+
+success() {
+  printf "\r\033[2K  [ \033[00;32mOK\033[0m ] $1\n"
+}
+
+fail() {
+  printf "\r\033[2K  [\033[0;31mFAIL\033[0m] $1\n"
+  echo ''
+  exit 1
+}
+
+[ "${CODESPACES:-}" = "true" ] || fail "This only runs inside a GitHub Codespace"
+
+repo_name=$(basename "${GITHUB_REPOSITORY:-codespace}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | sed 's/-*$//')
+ts_hostname="${HERDR_TS_HOSTNAME:-cs-${repo_name}}"
+
+# --- tailscale ---------------------------------------------------------------
+
+if command -v tailscale >/dev/null 2>&1; then
+  success "✅ tailscale already installed"
+else
+  info '🚀 Installing tailscale...'
+  curl -fsSL https://tailscale.com/install.sh | sh
+  success "✅ tailscale installed"
+fi
+
+tailscaled_running() { pgrep -x tailscaled >/dev/null 2>&1; }
+
+wait_for_tailscaled() {
+  for _ in $(seq 1 15); do
+    tailscale status >/dev/null 2>&1 && return 0
+    # status exits non-zero when logged out but the daemon still answers;
+    # treat "any response" as up by checking the backend state string
+    [ -n "$(backend_state)" ] && return 0
+    sleep 1
+  done
+  return 1
+}
+
+backend_state() {
+  tailscale status --json 2>/dev/null | sed -n 's/.*"BackendState": *"\([^"]*\)".*/\1/p' | head -1
+}
+
+start_tailscaled() {
+  local tun_flag=$1
+  # shellcheck disable=SC2086
+  sudo sh -c "nohup tailscaled --statedir=$TS_STATE_DIR $tun_flag >>$TS_STATE_DIR/tailscaled.log 2>&1 &"
+}
+
+if tailscaled_running; then
+  success "✅ tailscaled already running"
+else
+  sudo mkdir -p "$TS_STATE_DIR"
+  sudo chmod 700 "$TS_STATE_DIR"
+  info '🚀 Starting tailscaled (kernel tun)...'
+  start_tailscaled ""
+  sleep 3
+  if ! tailscaled_running; then
+    warn "kernel tun failed; retrying with userspace networking (inbound still works)"
+    start_tailscaled "--tun=userspace-networking"
+    sleep 3
+  fi
+  tailscaled_running || fail "tailscaled did not start — see $TS_STATE_DIR/tailscaled.log"
+  wait_for_tailscaled || fail "tailscaled started but is not responding"
+  success "✅ tailscaled running"
+fi
+
+state=$(backend_state)
+if [ "$state" = "Running" ]; then
+  success "✅ tailscale logged in ($(tailscale ip -4 2>/dev/null | head -1))"
+elif [ -n "${TS_AUTHKEY:-}" ]; then
+  info '🚀 Joining tailnet with auth key...'
+  sudo tailscale up --auth-key="$TS_AUTHKEY" --ssh --hostname="$ts_hostname" \
+    --operator="$USER" --accept-dns=false --accept-routes=false
+  success "✅ joined tailnet as $ts_hostname"
+elif [ -t 0 ]; then
+  info '🚀 No TS_AUTHKEY set — starting interactive login (follow the URL)...'
+  sudo tailscale up --ssh --hostname="$ts_hostname" \
+    --operator="$USER" --accept-dns=false --accept-routes=false
+  success "✅ joined tailnet as $ts_hostname"
+else
+  warn "not logged in to tailscale and no TS_AUTHKEY — run this to finish:"
+  echo ""
+  echo "    sudo tailscale up --ssh --hostname=$ts_hostname --operator=$USER --accept-dns=false --accept-routes=false"
+  echo ""
+fi
+
+# --- mosh --------------------------------------------------------------------
+
+if command -v mosh-server >/dev/null 2>&1; then
+  success "✅ mosh already installed"
+else
+  info '🚀 Installing mosh...'
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq mosh >/dev/null
+  success "✅ mosh installed"
+fi
+
+# --- herdr -------------------------------------------------------------------
+
+if command -v herdr >/dev/null 2>&1; then
+  success "✅ herdr already installed ($(herdr --version 2>/dev/null | head -1))"
+else
+  info '🚀 Installing herdr...'
+  curl -fsSL https://herdr.dev/install.sh | sh
+  success "✅ herdr installed"
+fi
+
+# --- moshi-hook --------------------------------------------------------------
+
+if command -v moshi-hook >/dev/null 2>&1; then
+  success "✅ moshi-hook already installed"
+else
+  info '🚀 Installing moshi-hook...'
+  curl -fsSL https://getmoshi.app/install.sh | sh
+  success "✅ moshi-hook installed"
+fi
+
+if [ -n "${MOSHI_PAIRING_TOKEN:-}" ]; then
+  info '🚀 Pairing moshi-hook with the app...'
+  # --store file: no keychain on headless Linux
+  moshi-hook pair --token "$MOSHI_PAIRING_TOKEN" --store file --name "$ts_hostname" \
+    || warn "pairing failed (already paired?)"
+  # NOTE: writes agent hooks into ~/.claude/settings.json, which is symlinked
+  # into the dotfiles repo — review and commit the diff it creates.
+  moshi-hook install
+  # restart so a daemon started before pairing picks up its HostID
+  pkill -f "moshi-hook serve" 2>/dev/null || true
+  sleep 1
+  (nohup moshi-hook serve >>"$HOME/.moshi-hook.log" 2>&1 &)
+  success "✅ moshi-hook daemon started"
+else
+  warn "MOSHI_PAIRING_TOKEN not set — finish moshi setup manually:"
+  echo ""
+  echo "    moshi-hook pair --token <token from Moshi app ▸ Settings ▸ Integrations> --store file --name $ts_hostname"
+  echo "    moshi-hook install   # writes hooks to ~/.claude/settings.json (in dotfiles — commit it)"
+  echo "    pkill -f 'moshi-hook serve'; (nohup moshi-hook serve >>~/.moshi-hook.log 2>&1 &)"
+  echo ""
+fi
+
+# --- summary -----------------------------------------------------------------
+
+echo ""
+echo "  ────────────────────────────────────────────────────────"
+if [ "$(backend_state)" = "Running" ]; then
+  ts_ip=$(tailscale ip -4 2>/dev/null | head -1)
+  # --peers=false: peers also carry DNSName fields; only Self's is wanted
+  ts_dns=$(tailscale status --json --peers=false 2>/dev/null | sed -n 's/.*"DNSName": *"\([^"]*\)\.".*/\1/p' | head -1)
+  echo "  Tailnet IP:    ${ts_ip}"
+  echo "  MagicDNS:      ${ts_dns:-$ts_hostname}"
+  echo ""
+  echo "  In Moshi, add a host:"
+  echo "    host: ${ts_dns:-$ts_ip}   user: $USER   transport: mosh (ssh fallback)"
+else
+  echo "  Finish the tailscale login above, then re-run for the summary."
+fi
+echo ""
+echo "  Daemons restart automatically when a shell opens after a"
+echo "  codespace stop/start (codespace/autostart.zsh). For unattended"
+echo "  agent runs, remember: cs-keepalive 2h"
+echo "  ────────────────────────────────────────────────────────"
