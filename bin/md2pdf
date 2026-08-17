@@ -79,6 +79,9 @@ body {
     line-height: 1.55;
     color: #1a1a1a;
     hyphens: auto;
+    /* Keep long URLs, paths, hashes, and other unspaced tokens inside the
+       printable page without changing normal prose wrapping. */
+    overflow-wrap: anywhere;
 }
 
 h1, h2, h3, h4 {
@@ -138,6 +141,7 @@ hr {
 
 table {
     width: 100%;
+    max-width: 100%;
     border-collapse: collapse;
     margin: 0.8em 0 1em;
     font-size: 9.5pt;
@@ -171,6 +175,16 @@ th, td {
     vertical-align: top;
     text-align: left;
     hyphens: auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+/* The first column is commonly a short ID/status field.  Give it enough room
+   to avoid one-character lines while retaining emergency wrapping for an
+   unusually long first-column value. */
+th:first-child,
+td:first-child {
+    min-width: 4.5em;
 }
 
 th {
@@ -185,7 +199,34 @@ ul, ol {
 }
 li { margin-bottom: 0.25em; }
 
-a { color: #0a4ea2; text-decoration: none; }
+a {
+    color: #0a4ea2;
+    text-decoration: none;
+    hyphens: none;
+    overflow-wrap: anywhere;
+}
+
+/* Markdown commonly puts long paths and URLs in inline-code spans.  The
+   browser default has no useful break points inside those tokens. */
+code {
+    white-space: normal;
+    hyphens: none;
+    overflow-wrap: anywhere;
+}
+
+/* Preserve code-block spacing while still wrapping lines wider than a page. */
+pre,
+pre code {
+    max-width: 100%;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+img,
+svg {
+    max-width: 100%;
+    height: auto;
+}
 
 blockquote {
     margin: 1em 0;
@@ -210,6 +251,12 @@ blockquote cite {
 img.mermaid-diagram {
     display: block;
     max-width: 100%;
+    /* Leave room for the section heading on Letter/A4 pages.  Replaced
+       elements cannot split across pages, so a full-height diagram otherwise
+       strands its heading on the preceding page. */
+    max-height: 7.25in;
+    width: auto;
+    height: auto;
     margin: 0.9em auto;
     page-break-inside: avoid;
 }
