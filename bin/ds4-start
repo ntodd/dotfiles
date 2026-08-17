@@ -1,0 +1,435 @@
+#!/bin/sh
+#
+# ds4-start - launch DwarfStar (ds4) as a local inference server for the Pi
+# coding agent.
+#
+# Finds the ds4 checkout, rebuilds the binaries when the sources have moved,
+# downloads the model if missing, then starts ds4-server with settings chosen
+# for coding-agent (oh-my-pi) use.
+#
+# Usage: ds4-start [--dry-run] [--help]
+#
+# The checkout is located in this order:
+#   1. $DS4_ROOT
+#   2. the current directory, or any parent of it, that looks like a checkout
+#   3. the common locations listed in DS4_CANDIDATES below
+#
+# Per-machine settings live in ~/.config/ds4/config (override the path with
+# $DS4_CONFIG). It is sourced as shell, so plain assignments work:
+#
+#   DS4_ROOT=$HOME/src/ds4
+#   DS4_CTX=262144
+#   DS4_POWER=70
+#
+# The environment still wins over that file, so one-offs work as before:
+#   DS4_CTX=131072 DS4_PORT=8001 ds4-start
+#   DS4_MODEL=ds4f-q2-q4 ds4-start         # higher quality, ~98 GB
+#   DS4_DSPARK=0 ds4-start                 # disable speculative decoding
+#   DS4_DRY_RUN=1 ds4-start                # print the command, don't run it
+#
+set -e
+
+DRY_RUN=${DS4_DRY_RUN:-0}
+
+usage() {
+    sed -n '3,28p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help) usage; exit 0 ;;
+        -n|--dry-run) DRY_RUN=1 ;;
+        *) echo "ds4-start: unknown argument '$arg'" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+# ---- Per-machine config -----------------------------------------------------
+
+# Every setting the config file may set. Used to give the environment priority
+# over the file: remember what was already set, source the file, put it back.
+DS4_SETTINGS='DS4_ROOT DS4_MODEL DS4_CTX DS4_MAX_TOKENS DS4_HOST DS4_PORT
+DS4_DSPARK DS4_DSPARK_FILE DS4_DSPARK_CONFIDENCE DS4_KV_ROOT DS4_KV_DIR
+DS4_KV_DISK_MB DS4_KV_COLD_MAX_TOKENS DS4_WARM DS4_POWER DS4_BATCHED_SESSION
+DS4_CORS DS4_REBUILD DS4_MAKE_TARGET DS4_CANDIDATES'
+
+DS4_CONFIG=${DS4_CONFIG:-"${XDG_CONFIG_HOME:-$HOME/.config}/ds4/config"}
+if [ -r "$DS4_CONFIG" ]; then
+    for v in $DS4_SETTINGS; do
+        eval "[ -n \"\${$v+x}\" ] && { __env_$v=\$$v; __had_$v=1; }" || true
+    done
+    . "$DS4_CONFIG"
+    for v in $DS4_SETTINGS; do
+        eval "[ -n \"\${__had_$v-}\" ] && $v=\$__env_$v" || true
+    done
+fi
+
+# ---- Locate the checkout ----------------------------------------------------
+
+DS4_CANDIDATES=${DS4_CANDIDATES:-"$HOME/Development/labs/ds4
+$HOME/Development/ds4
+$HOME/src/ds4
+$HOME/code/ds4
+$HOME/projects/ds4
+$HOME/ds4
+/opt/ds4
+/usr/local/src/ds4"}
+
+looks_like_ds4() {
+    [ -f "$1/Makefile" ] && [ -f "$1/ds4_server.c" ] && [ -f "$1/download_model.sh" ]
+}
+
+abspath() {
+    (CDPATH= cd -- "$1" && pwd)
+}
+
+find_root() {
+    if [ -n "${DS4_ROOT-}" ]; then
+        if looks_like_ds4 "$DS4_ROOT"; then
+            abspath "$DS4_ROOT"
+            return 0
+        fi
+        echo "!! DS4_ROOT does not look like a ds4 checkout: $DS4_ROOT" >&2
+        return 1
+    fi
+
+    dir=$(pwd -P)
+    while [ "$dir" != "/" ]; do
+        if looks_like_ds4 "$dir"; then
+            echo "$dir"
+            return 0
+        fi
+        dir=$(dirname "$dir")
+    done
+
+    for candidate in $DS4_CANDIDATES; do
+        if looks_like_ds4 "$candidate"; then
+            abspath "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if ! ROOT=$(find_root); then
+    if [ -z "${DS4_ROOT-}" ]; then
+        echo "!! No ds4 checkout found." >&2
+        echo "   Looked in the current directory tree and:" >&2
+        for candidate in $DS4_CANDIDATES; do
+            echo "     $candidate" >&2
+        done
+        echo "   Set DS4_ROOT, or add it to $DS4_CONFIG:" >&2
+        echo "     mkdir -p $(dirname "$DS4_CONFIG")" >&2
+        echo "     echo 'DS4_ROOT=/path/to/ds4' >> $DS4_CONFIG" >&2
+    fi
+    exit 1
+fi
+cd "$ROOT"
+
+# ---- Machine detection ------------------------------------------------------
+
+UNAME_S=$(uname -s)
+
+# Total system memory in MiB, or empty when it cannot be read. On Apple Silicon
+# and Strix Halo this is also the GPU's memory, which is what the sizing below
+# cares about. On a discrete-GPU box it is not: VRAM is the real limit there, so
+# set DS4_CTX in the config file rather than trusting the default.
+total_mem_mb() {
+    case "$UNAME_S" in
+        Darwin)
+            bytes=$(sysctl -n hw.memsize 2>/dev/null) || return 0
+            [ -n "$bytes" ] && echo $((bytes / 1048576))
+            ;;
+        Linux)
+            kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null) || return 0
+            [ -n "$kb" ] && echo $((kb / 1024))
+            ;;
+    esac
+}
+MEM_MB=$(total_mem_mb)
+
+# Unified memory means the weights come out of the same pool as everything else,
+# so the memory-based defaults and warnings below apply.
+UNIFIED=0
+case "$UNAME_S" in
+    Darwin) UNIFIED=1 ;;
+    Linux) [ -d /sys/class/kfd ] && ! command -v nvidia-smi >/dev/null 2>&1 && UNIFIED=1 ;;
+esac
+
+# ---- Tunables ---------------------------------------------------------------
+
+# Model to download when ./ds4flash.gguf is missing. These are the target names
+# understood by download_model.sh (run it with --help for the full list).
+#
+#   ds4f-q2      2-bit routed experts, ~81 GB. Recommended for 96/128 GB.
+#   ds4f-q2-q4   last 6 layers at q4, ~98 GB. Higher quality, less headroom.
+#   ds4f-q4      4-bit routed experts, ~153 GB. Needs 256 GB+.
+#
+# All three are the 2026-07-31 ("0731") DeepSeek V4 Flash checkpoint.
+DS4_MODEL=${DS4_MODEL:-ds4f-q2}
+
+# Context window. 393216 is the threshold where ds4-server honours Think Max
+# (reasoning_effort=max); below it, max quietly degrades to ordinary high
+# thinking. That is the reason for this specific number rather than a round one.
+#
+# Keep the clients in sync and never let them ask for more than this:
+#   ~/.omp/agent/models.yml   providers.ds4.models[].contextWindow
+#   ~/.pi/agent/models.json   providers.ds4.models[].contextWindow
+#
+# KV is mostly the compressed indexer and grows sublinearly, so the README's
+# 1M-token/~26 GB figure overstates the cost at this size. Measured on an
+# M5 Max / 128 GB with the 0731 q2 quant:
+#
+#   ctx      KV        buffers   planned total   + DSpark
+#   32768    0.61 GiB  0.88 GiB   81.62 GiB
+#   262144   2.36 GiB  2.00 GiB   85.13 GiB      ~90.7 GiB
+#   393216   3.37 GiB  3.00 GiB   87.13 GiB      ~92.7 GiB   <- default there
+#
+# So ~92.7 GiB of 128 GiB, leaving roughly 35 GiB for the OS and your editor.
+# Smaller machines get a smaller default, scaled off total memory; override it
+# in the config file if you know better for a given box.
+default_ctx() {
+    [ -n "$MEM_MB" ] || { echo 131072; return; }
+    if   [ "$MEM_MB" -ge 122880 ]; then echo 393216   # 120 GiB+ (128 GB class)
+    elif [ "$MEM_MB" -ge 92160 ];  then echo 262144   # 90 GiB+  (96 GB class)
+    elif [ "$MEM_MB" -ge 61440 ];  then echo 131072   # 60 GiB+  (64 GB class)
+    elif [ "$MEM_MB" -ge 40960 ];  then echo 65536
+    else echo 32768
+    fi
+}
+DS4_CTX=${DS4_CTX:-$(default_ctx)}
+
+# Default max output tokens for clients that omit a limit. Flash can produce
+# very long replies; the server still stops when the context window is full.
+DS4_MAX_TOKENS=${DS4_MAX_TOKENS:-384000}
+
+# Bind to localhost only. The server has no authentication, so do NOT expose it
+# on the LAN unless you understand the implications. Set DS4_HOST=0.0.0.0 to do so.
+DS4_HOST=${DS4_HOST:-127.0.0.1}
+DS4_PORT=${DS4_PORT:-8000}
+
+# DSpark speculative decoding (new with the 0731 release). The draft model
+# proposes up to five tokens and the main model verifies them, so predictable
+# continuations decode faster. It costs ~5.6 GiB of extra memory and is only
+# used for greedy decoding.
+#
+# Measured with `make dspark-acceptance` on the 0731 q2 quant, M5 Max (tok/s,
+# baseline -> DSpark): c_add 43.3 -> 53.6, python_reverse 43.4 -> 46.1,
+# redis 43.3 -> 45.6, math 41.8 -> 40.3, hello 41.7 -> 38.5. Code gains,
+# short conversational replies lose a little. That is the right trade for a
+# coding agent, so it defaults on -- rerun that target if you want to recheck.
+#
+# Note on temperature: ds4-server has no --temp flag, so greedy decoding is the
+# client's call. Pi does not send a temperature, so requests default to
+# temperature=1 and ordinary prose/reasoning decodes normally. DSpark still
+# kicks in for DSML tool-call payloads, which the server always samples
+# greedily -- that is the bulk of an agent's file paths and edit bodies. Set
+# temperature=0 client-side to get it for every token.
+#
+# The support GGUF is checkpoint-specific: it must only be paired with a 0731
+# Flash model. This script refuses to enable it against anything else.
+DS4_DSPARK=${DS4_DSPARK:-1}
+DS4_DSPARK_FILE=${DS4_DSPARK_FILE:-"$ROOT/gguf/DeepSeek-V4-Flash-DSpark-support-0731.gguf"}
+
+# Confidence threshold for pruning unlikely DSpark suffixes. Empty uses the
+# backend default (0.6 on Metal, 0.7 on CUDA/ROCm). 0 forces fixed five-token
+# blocks (diagnostic).
+DS4_DSPARK_CONFIDENCE=${DS4_DSPARK_CONFIDENCE:-}
+
+# Disk KV cache. Critical for agent clients: Pi (like other agents) resends the
+# whole conversation each request, and the first prompt can be 25k+ tokens.
+# The disk cache lets continuations and restarted sessions reuse the saved
+# prefix instead of re-prefilling from token zero.
+#
+# The directory is keyed by model file name on purpose. Checkpoints only record
+# a coarse model id (Flash vs PRO) and the quant width, so a cache written by
+# the older June Flash build would look valid to the 0731 build and silently
+# restore state computed with different weights. A per-model directory keeps
+# them apart instead of relying on that check.
+DS4_KV_ROOT=${DS4_KV_ROOT:-"$HOME/.ds4/server-kv"}
+DS4_KV_DISK_MB=${DS4_KV_DISK_MB:-65536}
+
+# Save cold first prompts up to this many tokens (server default is 30000).
+# An agent's opening prompt is system prompt + tool schemas + repo context, so
+# a larger cap means the expensive first prefill is reusable across restarts.
+DS4_KV_COLD_MAX_TOKENS=${DS4_KV_COLD_MAX_TOKENS:-65536}
+
+# Touch mapped tensor pages at startup so the first request does not pay the
+# page-in stall. Warming 80.76 GiB measured ~80s cold and ~6s when the file is
+# still in the page cache, and the server only starts listening afterwards.
+# Worth it for an always-on server, so it defaults on. Set DS4_WARM=0 to start
+# listening immediately and let the first request page the weights in instead.
+DS4_WARM=${DS4_WARM:-1}
+
+# GPU duty cycle, 1..100. 100 = full speed. Lower it (e.g. 70) for a quieter,
+# cooler always-on server at the cost of throughput. Leave unset for full speed.
+DS4_POWER=${DS4_POWER:-}
+
+# Resident batched sessions, for serving several conversations at once. Leave
+# empty for single-user agent work: batching disables speculative decoding.
+DS4_BATCHED_SESSION=${DS4_BATCHED_SESSION:-}
+
+# Set DS4_CORS=1 to add CORS headers for browser-based clients.
+DS4_CORS=${DS4_CORS:-}
+
+# ---- Build if the binaries are missing or stale -----------------------------
+
+# `make` with no target builds the Metal binaries on macOS, but only prints help
+# elsewhere -- the Linux side of the Makefile wants an explicit backend. Pick one
+# from what is installed; override with DS4_MAKE_TARGET (cuda-spark for a DGX
+# Spark / GB10, cpu to force the CPU build, and so on).
+default_make_target() {
+    case "$UNAME_S" in
+        Darwin) echo all ;;
+        Linux)
+            if command -v hipcc >/dev/null 2>&1 || [ -x /opt/rocm/bin/hipcc ]; then
+                echo rocm
+            elif command -v nvcc >/dev/null 2>&1 || [ -x /usr/local/cuda/bin/nvcc ]; then
+                echo cuda-generic
+            else
+                echo cpu
+            fi
+            ;;
+        *) echo cpu ;;
+    esac
+}
+DS4_MAKE_TARGET=${DS4_MAKE_TARGET:-$(default_make_target)}
+
+needs_build() {
+    [ ! -x "$ROOT/ds4-server" ] && return 0
+    # Any C/ObjC/CUDA source, header, or GPU shader newer than the binary.
+    found=$(find "$ROOT" -maxdepth 1 \( -name '*.c' -o -name '*.h' -o -name '*.m' \
+                -o -name '*.cu' -o -name '*.inc' -o -name 'Makefile' \) \
+                -newer "$ROOT/ds4-server" -print 2>/dev/null | head -1)
+    [ -n "$found" ] && return 0
+    for dir in metal rocm cuda; do
+        [ -d "$ROOT/$dir" ] || continue
+        found=$(find "$ROOT/$dir" \( -name '*.metal' -o -name '*.cuh' -o -name '*.cu' \
+                    -o -name '*.h' -o -name '*.hpp' \) \
+                    -newer "$ROOT/ds4-server" -print 2>/dev/null | head -1)
+        [ -n "$found" ] && return 0
+    done
+    return 1
+}
+
+if [ "${DS4_REBUILD:-0}" = "1" ] || needs_build; then
+    echo ">> Sources changed (or ds4-server missing), building '$DS4_MAKE_TARGET'..."
+    make "$DS4_MAKE_TARGET"
+fi
+
+# ---- Download model if missing ----------------------------------------------
+
+if [ ! -e "$ROOT/ds4flash.gguf" ]; then
+    echo ">> Model not found. Downloading '$DS4_MODEL' (this is large, tens of GB)."
+    echo "   Re-running is safe; downloads resume."
+    "$ROOT/download_model.sh" "$DS4_MODEL"
+fi
+
+# Resolve the symlink target so we can sanity-check the file actually exists.
+MODEL_PATH=$(cd "$ROOT" && readlink ds4flash.gguf 2>/dev/null || echo "$ROOT/ds4flash.gguf")
+case "$MODEL_PATH" in
+    /*) ;;
+    *) MODEL_PATH="$ROOT/$MODEL_PATH" ;;
+esac
+if [ ! -s "$MODEL_PATH" ]; then
+    echo "!! Model file missing or empty: $MODEL_PATH" >&2
+    echo "   Run: $ROOT/download_model.sh $DS4_MODEL" >&2
+    exit 1
+fi
+
+MODEL_NAME=$(basename "$MODEL_PATH")
+MODEL_TAG=$(basename "$MODEL_NAME" .gguf)
+
+# On unified memory the weights and the OS share one pool, so a model that is
+# larger than the machine will thrash rather than fail cleanly. Warn early.
+if [ "$UNIFIED" = "1" ] && [ -n "$MEM_MB" ]; then
+    MODEL_MB=$(( $(wc -c < "$MODEL_PATH") / 1048576 ))
+    if [ "$((MODEL_MB + 12288))" -gt "$MEM_MB" ]; then
+        echo "!! $MODEL_NAME is ${MODEL_MB} MiB on a ${MEM_MB} MiB machine." >&2
+        echo "   Expect heavy paging. A smaller quant (DS4_MODEL=ds4f-q2) or" >&2
+        echo "   --ssd-streaming would fit better." >&2
+    fi
+fi
+
+# ---- DSpark support model ---------------------------------------------------
+
+DSPARK_ACTIVE=0
+if [ "$DS4_DSPARK" = "1" ]; then
+    case "$MODEL_NAME" in
+        *0731*)
+            if [ ! -s "$DS4_DSPARK_FILE" ]; then
+                echo ">> DSpark support model missing, downloading (~5.6 GB)..."
+                "$ROOT/download_model.sh" ds4f-dspark
+            fi
+            if [ -s "$DS4_DSPARK_FILE" ]; then
+                DSPARK_ACTIVE=1
+            else
+                echo "!! DSpark support model still missing: $DS4_DSPARK_FILE" >&2
+                echo "   Continuing without speculative decoding." >&2
+            fi
+            ;;
+        *)
+            echo ">> Model '$MODEL_NAME' is not a 0731 checkpoint."
+            echo "   DSpark is checkpoint-specific, so speculative decoding stays off."
+            ;;
+    esac
+fi
+
+if [ "$DSPARK_ACTIVE" = "1" ] && [ -n "$DS4_BATCHED_SESSION" ]; then
+    echo ">> DS4_BATCHED_SESSION is set, which disables speculative decoding."
+    echo "   Leaving DSpark loaded but inactive for decode."
+fi
+
+# ---- KV cache directory -----------------------------------------------------
+
+DS4_KV_DIR=${DS4_KV_DIR:-"$DS4_KV_ROOT/$MODEL_TAG"}
+mkdir -p "$DS4_KV_DIR"
+
+# ---- Assemble arguments -----------------------------------------------------
+
+set -- \
+    --chdir "$ROOT" \
+    -m "$MODEL_PATH" \
+    --ctx "$DS4_CTX" \
+    --tokens "$DS4_MAX_TOKENS" \
+    --host "$DS4_HOST" \
+    --port "$DS4_PORT" \
+    --kv-disk-dir "$DS4_KV_DIR" \
+    --kv-disk-space-mb "$DS4_KV_DISK_MB" \
+    --kv-cache-cold-max-tokens "$DS4_KV_COLD_MAX_TOKENS" \
+    --kv-cache-reject-different-quant
+
+if [ "$DSPARK_ACTIVE" = "1" ]; then
+    set -- "$@" --mtp "$DS4_DSPARK_FILE"
+    if [ -n "$DS4_DSPARK_CONFIDENCE" ]; then
+        set -- "$@" --dspark-confidence "$DS4_DSPARK_CONFIDENCE"
+    else
+        set -- "$@" --dspark
+    fi
+fi
+
+[ "$DS4_WARM" = "1" ] && set -- "$@" --warm-weights
+[ -n "$DS4_POWER" ] && set -- "$@" --power "$DS4_POWER"
+[ -n "$DS4_BATCHED_SESSION" ] && set -- "$@" --batched-session "$DS4_BATCHED_SESSION"
+[ -n "$DS4_CORS" ] && set -- "$@" --cors
+
+echo ">> Starting ds4-server"
+echo "   root  : $ROOT"
+echo "   model : $MODEL_NAME"
+echo "   listen: http://$DS4_HOST:$DS4_PORT  (OpenAI / Anthropic / Responses compatible)"
+echo "   ctx   : $DS4_CTX tokens"
+echo "   kvdisk: $DS4_KV_DIR (${DS4_KV_DISK_MB} MB)"
+if [ "$DSPARK_ACTIVE" = "1" ]; then
+    echo "   dspark: on (greedy decode and tool-call payloads)"
+else
+    echo "   dspark: off"
+fi
+echo
+
+if [ "$DRY_RUN" = "1" ]; then
+    printf '%s' "$ROOT/ds4-server"
+    for a in "$@"; do printf ' %s' "$a"; done
+    printf '\n'
+    exit 0
+fi
+
+exec "$ROOT/ds4-server" "$@"
