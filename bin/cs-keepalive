@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# cs-keepalive — keep this codespace alive while unattended agents run.
+#
+# GitHub's idle timer only counts activity on its OWN connections (VS Code,
+# gh codespace ssh). Tailscale/mosh sessions are invisible to it, so the
+# codespace stops after your idle timeout even with a live mosh session or
+# an agent mid-task. This loops a no-op `gh codespace ssh` against ourselves
+# every 5 minutes to register activity.
+#
+# The codespace bills the whole time, so a duration is required (default 2h):
+#   cs-keepalive        # 2 hours
+#   cs-keepalive 90m
+#   cs-keepalive 4h
+#
+# Run it in the background from herdr/tmux: cs-keepalive 3h &
+
+set -euo pipefail
+
+[ "${CODESPACES:-}" = "true" ] || { echo "not inside a codespace" >&2; exit 1; }
+
+dur=${1:-2h}
+num=${dur%[mh]}
+case "$dur" in
+  *h) unit=3600 ;;
+  *) unit=60 ;;
+esac
+case "$num" in
+  '' | *[!0-9]*) echo "usage: cs-keepalive [<minutes>m|<hours>h]" >&2; exit 1 ;;
+esac
+secs=$(( num * unit ))
+
+end=$(( $(date +%s) + secs ))
+echo "keeping $CODESPACE_NAME alive until $(date -d "@$end" '+%H:%M') (Ctrl-C to stop)"
+
+while [ "$(date +%s)" -lt "$end" ]; do
+  if ! gh codespace ssh -c "$CODESPACE_NAME" -- true >/dev/null 2>&1; then
+    echo "$(date '+%H:%M') keepalive ping failed (gh auth?)" >&2
+  fi
+  sleep 300
+done
+echo "keepalive window ended — codespace will idle out normally"
