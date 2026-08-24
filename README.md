@@ -22,6 +22,12 @@ to review.
 If `~/.localrc` exists, it will be sourced. You can put custom configuration and
 environment variables there to keep them out of the dotfiles repo.
 
+### Oh My Pi PR Review
+
+`script/setup` links the custom `/pr-review` and `/pr-issues` extension, its
+review policy, and its supporting agents into `~/.omp/agent`. The workflow
+requires Oh My Pi and an authenticated GitHub CLI (`gh`) on the target machine.
+
 ## Layout & Topics
 
 The dotfiles are built around topic areas. If you're adding a new area to your

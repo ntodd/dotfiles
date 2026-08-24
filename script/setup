@@ -163,10 +163,26 @@ install_claude_config() {
   link_file "$DOTFILES_ROOT/claude/hooks" "$HOME/.claude/hooks"
 }
 
+install_omp_config() {
+  info '🚀 Installing Oh My Pi configuration...'
+  local overwrite_all=false backup_all=false skip_all=false
+
+  mkdir -p "$HOME/.omp/agent/extensions" "$HOME/.omp/agent/agents"
+
+  link_file \
+    "$DOTFILES_ROOT/omp/agent/extensions/pr-review" \
+    "$HOME/.omp/agent/extensions/pr-review"
+
+  for agent in "$DOTFILES_ROOT"/omp/agent/agents/*.md; do
+    link_file "$agent" "$HOME/.omp/agent/agents/$(basename "$agent")"
+  done
+}
+
 install_oh_my_zsh
 install_tmux_plugin_manager
 install_dotfiles
 install_claude_config
+install_omp_config
 
 echo ''
 echo '🎉 Installation complete! 🥳'
