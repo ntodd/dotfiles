@@ -8,6 +8,7 @@ import {
   fullReviewText,
   findReviewBaselineId,
   normalizeFindings,
+  normalizeWalkthrough,
   reviewSubmissionError,
   walkthroughText,
   patchContainsNewLine,
@@ -27,6 +28,7 @@ function reviewState(overrides: Partial<PrReviewState> = {}): PrReviewState {
       codeMap: [],
       dataFlows: [],
       mermaid: "",
+      migrationErd: "",
       blastRadius: "Review sessions only.",
     },
     qualityGate: {
@@ -41,6 +43,15 @@ function reviewState(overrides: Partial<PrReviewState> = {}): PrReviewState {
     ...overrides,
   };
 }
+
+describe("normalizeWalkthrough", () => {
+  it("fills the migration ERD field for legacy persisted walkthroughs", () => {
+    const walkthrough = normalizeWalkthrough({ problem: "Legacy review" });
+
+    assert.equal(walkthrough.problem, "Legacy review");
+    assert.equal(walkthrough.migrationErd, "");
+  });
+});
 
 describe("normalizeFindings", () => {
   it("preserves interactive flags and notes when state is reloaded", () => {
@@ -330,6 +341,17 @@ describe("fullReviewText", () => {
           '  A["session entry"] --> B["reloadReview"]',
           '  B --> C["interactive list"]',
         ].join("\n"),
+        migrationErd: [
+          "erDiagram",
+          "  accounts {",
+          "    bigint id PK",
+          "  }",
+          "  users {",
+          "    bigint id PK",
+          "    bigint account_id FK",
+          "  }",
+          "  accounts ||..o{ users : references",
+        ].join("\n"),
         blastRadius: "Review-session state.",
       },
       qualityGate: {
@@ -351,6 +373,19 @@ describe("fullReviewText", () => {
     assert.match(text, /src\/review\.ts:12-24/);
     assert.match(text, /```mermaid\nflowchart LR/);
     assert.match(text, /A\["session entry"\] --> B\["reloadReview"\]/);
+    assert.match(text, /Database ERD:\n```mermaid\nerDiagram/);
+    assert.match(text, /accounts \|\|\.\.o\{ users : references/);
+    assert.equal(text.match(/```mermaid\n/g)?.length, 2);
+    assert.equal(
+      walkthroughText({ ...state, walkthrough: { ...state.walkthrough, migrationErd: "" } }).match(
+        /```mermaid\n/g,
+      )?.length,
+      1,
+    );
+    assert.match(
+      walkthroughText({ ...state, walkthrough: { ...state.walkthrough, mermaid: "" } }),
+      /Database ERD:\n```mermaid\nerDiagram/,
+    );
     assert.doesNotMatch(walkthroughText(state, { includeMermaid: false }), /```mermaid/);
     assert.match(text, /Senior-engineering gate: CAUTION/);
     assert.match(text, /18: return reloadReview\(defaultState\)/);

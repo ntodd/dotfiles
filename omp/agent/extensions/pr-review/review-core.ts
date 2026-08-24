@@ -38,7 +38,21 @@ export interface PrWalkthrough {
   codeMap: CodeMapEntry[];
   dataFlows: DataFlow[];
   mermaid: string;
+  migrationErd: string;
   blastRadius: string;
+}
+
+export function normalizeWalkthrough(value?: Partial<PrWalkthrough>): PrWalkthrough {
+  return {
+    problem: "",
+    behavior: "",
+    codeMap: [],
+    dataFlows: [],
+    mermaid: "",
+    migrationErd: "",
+    blastRadius: "",
+    ...value,
+  };
 }
 
 export interface GateCheck {
@@ -90,14 +104,7 @@ export function emptyState(): PrReviewState {
     title: "",
     summary: "",
     verdict: "",
-    walkthrough: {
-      problem: "",
-      behavior: "",
-      codeMap: [],
-      dataFlows: [],
-      mermaid: "",
-      blastRadius: "",
-    },
+    walkthrough: normalizeWalkthrough(),
     qualityGate: {
       verdict: "",
       rationale: "",
@@ -339,6 +346,10 @@ export function walkthroughText(
     for (const flow of walkthrough.dataFlows) {
       lines.push(`  - ${flow.name}: ${flow.steps.join(" → ")}`);
     }
+  }
+
+  if (walkthrough.migrationErd && options.includeMermaid !== false) {
+    lines.push("- Database ERD:", "```mermaid", walkthrough.migrationErd.trim(), "```");
   }
 
   lines.push(`- Blast radius: ${walkthrough.blastRadius || "Not established"}`);

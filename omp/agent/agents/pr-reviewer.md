@@ -64,11 +64,15 @@ output:
           metadata:
             description: Valid Mermaid source for the PR code and data-flow diagram; no Markdown fences
           type: string
+        migration_erd:
+          metadata:
+            description: Non-empty valid Mermaid erDiagram source when any database migration changes; empty otherwise
+          type: string
         blast_radius:
           metadata:
             description: Affected callers, state, storage, APIs, jobs, and operational surfaces
           type: string
-      required: [problem, behavior, code_map, data_flows, mermaid, blast_radius]
+      required: [problem, behavior, code_map, data_flows, mermaid, migration_erd, blast_radius]
     quality_gate:
       metadata:
         description: Evidence-backed senior-engineering sniff test
@@ -200,6 +204,21 @@ correctly solves a real problem and fits the repository.
   flow or `sequenceDiagram` when actor ordering matters. Use quoted node labels,
   exact symbols or boundaries, and concise edges. The diagram must agree with
   `code_map` and `data_flows`; never invent a prettier path than the code proves.
+- Inspect the changed paths for database migrations. Return exactly an empty
+  `migration_erd` only when no migration changed. Otherwise return non-empty,
+  unfenced Mermaid source beginning with `erDiagram`, including data-only
+  migrations; use an entity-only diagram when no relationship is established.
+- Model the post-migration shape of every affected table. Include only fields
+  established by the migration or current schema, using Mermaid-safe single-token
+  types and only evidenced `PK`, `FK`, or `UK` markers. Read the schema dump,
+  related migrations, and model definitions needed to establish that shape.
+- Draw relationships only for actual foreign keys or references. Derive
+  optionality from nullability and maximum cardinality from uniqueness. Use an
+  identifying connector only when the foreign key participates in the child key,
+  and prefer a neutral `references` label when domain wording is not established.
+  Do not mark members of a composite unique index as individually `UK`.
+- Never infer fields or relationships from names. Omit dropped fields and tables
+  from the ERD's post-migration state and explain destructive changes in prose.
 - State the blast radius: callers, APIs, persisted data, jobs, caches, external
   systems, and operational behavior that can change.
 

@@ -37,6 +37,7 @@ import {
   findReviewBaselineId,
   findingContextText,
   normalizeFindings,
+  normalizeWalkthrough,
   qualityGateText,
   patchContainsNewLine,
   reviewEventLabel,
@@ -120,7 +121,12 @@ function stateFromBranch(sm: { getBranch(leafId?: string | null): unknown[] }): 
     const entry = branch[i] as SessionEntry | null;
     if (entry && entry.type === "custom" && entry.customType === STATE_TYPE && entry.data) {
       const data = entry.data as Partial<PrReviewState>;
-      return { ...emptyState(), ...data, findings: normalizeFindings(data.findings) };
+      return {
+        ...emptyState(),
+        ...data,
+        walkthrough: normalizeWalkthrough(data.walkthrough),
+        findings: normalizeFindings(data.findings),
+      };
     }
   }
   return null;
@@ -425,7 +431,14 @@ async function submitReview(
 
 function renderSummary(message: CustomMessage<PrReviewState>, _options: { expanded: boolean }, theme: Theme) {
   const raw = (message.details ?? null) as Partial<PrReviewState> | null;
-  const state = raw ? { ...emptyState(), ...raw, findings: normalizeFindings(raw.findings) } : null;
+  const state = raw
+    ? {
+        ...emptyState(),
+        ...raw,
+        walkthrough: normalizeWalkthrough(raw.walkthrough),
+        findings: normalizeFindings(raw.findings),
+      }
+    : null;
   if (!state) return new Text("", 1, 0);
   const lines: string[] = [theme.fg("accent", `PR Review — #${state.pr} ${state.title}`.trimEnd())];
   if (state.verdict) lines.push(theme.fg("muted", `Verdict: ${state.verdict}`));
@@ -802,6 +815,9 @@ export default function (pi: ExtensionAPI): void {
         mermaid: pi.zod.string().describe(
           "Valid Mermaid source for the PR's code and data flow; no Markdown fences",
         ),
+        migration_erd: pi.zod.string().describe(
+          "Non-empty valid Mermaid erDiagram source when any database migration changes; empty otherwise",
+        ),
         blast_radius: pi.zod.string().describe("Affected callers, state, storage, APIs, jobs, or operational surfaces"),
       }),
       quality_gate: pi.zod.object({
@@ -849,6 +865,7 @@ export default function (pi: ExtensionAPI): void {
           codeMap: params.walkthrough.code_map,
           dataFlows: params.walkthrough.data_flows,
           mermaid: params.walkthrough.mermaid,
+          migrationErd: params.walkthrough.migration_erd,
           blastRadius: params.walkthrough.blast_radius,
         },
         qualityGate: {
@@ -953,7 +970,8 @@ export default function (pi: ExtensionAPI): void {
         `title=${JSON.stringify(meta.title)}, the review-writer summary and verdict, and the pr-reviewer walkthrough, ` +
         `quality_gate, and findings verbatim.\n` +
         `4. Present the recorded review to the user. Include the walkthrough's \`mermaid\` source as a fenced Mermaid ` +
-        `code block so OMP renders the code/data-flow diagram. Then show the gate verdict and findings without ` +
+        `code block so OMP renders the code/data-flow diagram. When \`migration_erd\` is non-empty, include it as a ` +
+        `second fenced Mermaid block labeled as the database ERD. Then show the gate verdict and findings without ` +
         `duplicating either custom agent's research.`;
       pi.sendUserMessage(prompt);
       ctx.ui.notify(`Reviewing PR #${meta.pr} — ${meta.title}`, "info");
