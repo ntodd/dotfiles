@@ -167,15 +167,25 @@ install_omp_config() {
   info '🚀 Installing Oh My Pi configuration...'
   local overwrite_all=false backup_all=false skip_all=false
 
-  mkdir -p "$HOME/.omp/agent/extensions" "$HOME/.omp/agent/agents"
+  mkdir -p "$HOME/.omp/agent/extensions" "$HOME/.omp/agent/agents" "$HOME/.omp/agent/rules"
 
   for extension in "$DOTFILES_ROOT"/omp/agent/extensions/*; do
     link_file "$extension" "$HOME/.omp/agent/extensions/$(basename "$extension")"
+  done
+  for rule in "$DOTFILES_ROOT"/omp/agent/rules/*.md; do
+    link_file "$rule" "$HOME/.omp/agent/rules/$(basename "$rule")"
   done
 
   for agent in "$DOTFILES_ROOT"/omp/agent/agents/*.md; do
     link_file "$agent" "$HOME/.omp/agent/agents/$(basename "$agent")"
   done
+
+  # Remove symlinks whose source no longer exists in the repo
+  local dir
+  for dir in rules agents extensions; do
+    find "$HOME/.omp/agent/$dir" -maxdepth 1 -type l ! -exec test -e {} \; -print -delete
+  done
+
 }
 
 install_oh_my_zsh
