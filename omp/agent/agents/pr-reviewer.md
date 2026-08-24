@@ -153,15 +153,40 @@ correctly solves a real problem and fits the repository.
 ## 2. Gather the change
 - The PR number and repository are in the prompt. Read `pr://<owner>/<repo>/<n>`
   for the title, body, and metadata, then `pr://<owner>/<repo>/<n>/diff/all` for
-  the cached unified diff. Do not make a second raw `gh pr diff` request.
-- Compare `git rev-parse HEAD` with the PR's `headRefOid` before treating local
+  the cached unified diff.
+- The rule-audit pipeline below is the only allowed raw `gh pr diff` request.
+  Do not make another or use it instead of the cached diff for the semantic review.
+- Immediately before that pipeline, query the live head with
+  `gh pr view <number> --repo <owner/repo> --json headRefOid --jq .headRefOid`.
+  If it differs from the cached metadata, re-read the PR metadata and cached diff
+  once. If they still differ, stop and report the moving/stale head instead of
+  reviewing one revision semantically and scanning another.
+- Compare `git rev-parse HEAD` with the verified `headRefOid` before treating local
   files as the PR head. If they differ, use the diff or retrieve the exact head
   revision with `gh api`; do not review stale local file contents as changed code.
 - Trace the changed entry points, callers, invariants, state/storage boundaries,
   and external effects needed to understand the behavior. Use `lsp` for
   definitions/references when the checked-out revision matches the PR head.
 
-## 3. Explain the PR before judging it
+## 3. Apply native OMP rules to the diff
+- Run exactly one rule audit before judging the change:
+  `set -o pipefail; gh pr diff <number> --repo <owner/repo> | node "$HOME/.omp/agent/extensions/pr-review/review-rules.mjs" --git-ref <verified-headRefOid>`.
+- The scanner loads OMP's effective registered native regex rules through
+  `omp ttsr list --json`, scans each changed file's exact full postimage, and
+  returns candidates only when a regex match overlaps an added line. A candidate
+  is not automatically a violation. Resolve every `unscanned` warning before
+  approving; it means the exact PR-head file was unavailable locally.
+- For every candidate, read `rule://<name>`. If that URL is unavailable, read the
+  fallback rule file reported by the scanner. Check the full rule, its exceptions,
+  surrounding code, and repository conventions.
+- Report only concrete violations introduced by the PR, anchored to the matching
+  added line. Name the violated rule in the finding. A confirmed rule violation is
+  valid even when its direct impact is maintenance, test isolation, consistency,
+  or avoidable production work rather than an immediate runtime failure.
+- Do not load all rules into context. Read only rules matched by the scanner.
+  Continue the semantic review because regex conditions cannot prove compliance.
+
+## 4. Explain the PR before judging it
 - Establish the claimed problem from the PR context, then verify who can actually
   reach it from the code. Say when value or reachability is not established.
 - Describe the actual behavior change, not the ticket language.
@@ -178,7 +203,7 @@ correctly solves a real problem and fits the repository.
 - State the blast radius: callers, APIs, persisted data, jobs, caches, external
   systems, and operational behavior that can change.
 
-## 4. Apply the senior-engineering gate
+## 5. Apply the senior-engineering gate
 - Return exactly these seven checks: `problem_value`, `correctness`, `scope`,
   `complexity`, `maintainability`, `technical_debt`, and `production`.
 - `problem_value`: Is the case real and reachable? Is its benefit proportional
@@ -202,7 +227,7 @@ correctly solves a real problem and fits the repository.
   `caution` for conscious tradeoffs or uncertainty, and `pass` when it clears
   the bar without material reservations.
 
-## 5. Review and classify findings
+## 6. Review and classify findings
 - Apply the loaded policy. Correctness remains first, but confirmed fundamental
   value, proportionality, maintenance, debt, and production problems are valid
   findings—not “optional refactors.”
@@ -214,7 +239,7 @@ correctly solves a real problem and fits the repository.
   `minor` — worth fixing; `nit`/`style` — polish; `praise` — something done well.
 - Prefer fewer, root-cause findings. Do not split one design flaw into symptoms.
 
-## 6. Report
+## 7. Report
 - Call `yield` with `summary`, `verdict`, `walkthrough`, `quality_gate`, and
   `findings` per the output schema.
 - Write `summary` in the voice and structure the instructions require.
