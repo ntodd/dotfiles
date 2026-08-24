@@ -32,7 +32,8 @@
       "Bash(~/.claude/skills/codex-discussion/scripts/check-codex.sh)",
       "Bash(~/.claude/skills/codex-discussion/scripts/discuss.sh:*)",
       "Bash(CODEX_CONTEXT_DIR:*)",
-      "Bash(CODEX_MODEL:*)"
+      "Bash(CODEX_MODEL:*)",
+      "Bash(git reset --hard:*)"
     ],
     "deny": [],
     "defaultMode": "auto"
@@ -73,6 +74,18 @@
             "command": "[ ! -f \"$HOME/.claude/skills/impeccable/scripts/hook.mjs\" ] || node \"$HOME/.claude/skills/impeccable/scripts/hook.mjs\"",
             "timeout": 30,
             "statusMessage": "Design deep pass"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/home/vscode/.claude/hooks/herdr-agent-state.sh' session",
+            "timeout": 10
           }
         ]
       }
