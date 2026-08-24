@@ -169,9 +169,9 @@ install_omp_config() {
 
   mkdir -p "$HOME/.omp/agent/extensions" "$HOME/.omp/agent/agents"
 
-  link_file \
-    "$DOTFILES_ROOT/omp/agent/extensions/pr-review" \
-    "$HOME/.omp/agent/extensions/pr-review"
+  for extension in "$DOTFILES_ROOT"/omp/agent/extensions/*; do
+    link_file "$extension" "$HOME/.omp/agent/extensions/$(basename "$extension")"
+  done
 
   for agent in "$DOTFILES_ROOT"/omp/agent/agents/*.md; do
     link_file "$agent" "$HOME/.omp/agent/agents/$(basename "$agent")"
