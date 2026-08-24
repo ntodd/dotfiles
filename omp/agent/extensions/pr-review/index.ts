@@ -16,7 +16,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Text } from "@oh-my-pi/pi-tui";
+import { Markdown, Text } from "@oh-my-pi/pi-tui";
+import { getMarkdownTheme } from "@oh-my-pi/pi-coding-agent";
 import type {
   CustomMessage,
   ExtensionAPI,
@@ -444,7 +445,7 @@ function renderSummary(message: CustomMessage<PrReviewState>, _options: { expand
   if (state.verdict) lines.push(theme.fg("muted", `Verdict: ${state.verdict}`));
   for (const line of state.summary.split("\n")) lines.push(line);
   lines.push("");
-  for (const line of walkthroughText(state, { includeMermaid: false }).split("\n")) lines.push(line);
+  for (const line of walkthroughText(state).split("\n")) lines.push(line);
   lines.push("");
   for (const line of qualityGateText(state).split("\n")) lines.push(line);
   const counts: Record<string, number> = {};
@@ -452,7 +453,7 @@ function renderSummary(message: CustomMessage<PrReviewState>, _options: { expand
   const parts = Object.entries(counts).map(([severity, count]) => `${count} ${severity}`);
   if (parts.length > 0) lines.push("", theme.fg("muted", `${state.findings.length} finding(s): ${parts.join(", ")}`));
   lines.push("", theme.fg("dim", "Run /pr-issues to inspect code, discuss the gate, investigate, or submit."));
-  return new Text(lines.join("\n"), 1, 0);
+  return new Markdown(lines.join("\n"), 1, 0, getMarkdownTheme());
 }
 
 // ============================================================================
