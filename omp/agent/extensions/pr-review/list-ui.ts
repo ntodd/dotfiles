@@ -10,11 +10,11 @@
 //   /                 filter by text
 //   enter / c         quick tool-free discussion
 //   i                 investigate with the issue-digger agent
+//   v                 open the full review viewer and switch presentation format
 //   o                 discuss the PR walkthrough and senior-engineering gate
 //   m                 toggle "flag for inline PR comment"
 //   n                 edit a personal note for the issue
 //   s                 go to submit
-//   Esc / q           close
 
 import {
   Container,
@@ -30,6 +30,7 @@ import { getSelectListTheme, type Theme } from "@oh-my-pi/pi-coding-agent";
 
 export type IssueListAction =
   | { kind: "overview" }
+  | { kind: "view" }
   | { kind: "toggle-flag"; index: number }
   | { kind: "edit-note"; index: number }
   | { kind: "chat"; index: number }
@@ -116,6 +117,10 @@ export class IssueList extends Container {
       this.#done({ kind: "investigate", index: this.#selectedFindingIndex });
       return;
     }
+    if (data === "v") {
+      this.#done({ kind: "view" });
+      return;
+    }
     if (data === "o") {
       this.#done({ kind: "overview" });
       return;
@@ -138,7 +143,7 @@ export class IssueList extends Container {
     lines.push("");
     const help = this.#theme.fg(
       "muted",
-      "enter/c: discuss  i: investigate  o: overview  m: flag  n: note  s: submit  /: filter  esc/q: close",
+      "enter/c: discuss  i: investigate  v: view  o: overview  m: flag  n: note  s: submit  /: filter  esc/q: close",
     );
     lines.push(truncateToWidth(help, width));
     return lines;

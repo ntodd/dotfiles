@@ -284,8 +284,18 @@ function reviewerContract(output: string): { outputDigest: string; recordDigest:
 function writerContract(output: string): string | null {
   try {
     const parsed = JSON.parse(output) as Record<string, unknown>;
-    if (parsed.summary === undefined || parsed.verdict === undefined) return null;
-    return digestValue({ summary: parsed.summary, verdict: parsed.verdict });
+    if (
+      parsed.summary === undefined ||
+      parsed.verdict === undefined ||
+      parsed.ste_presentation === undefined
+    ) {
+      return null;
+    }
+    return digestValue({
+      summary: parsed.summary,
+      verdict: parsed.verdict,
+      ste_presentation: parsed.ste_presentation,
+    });
   } catch {
     return null;
   }
@@ -362,7 +372,11 @@ function recordMatchesAgentOutputs(workflow: ReviewWorkflowState, input: Record<
     quality_gate: input.quality_gate,
     findings: input.findings,
   });
-  const writerDigest = digestValue({ summary: input.summary, verdict: input.verdict });
+  const writerDigest = digestValue({
+    summary: input.summary,
+    verdict: input.verdict,
+    ste_presentation: input.ste_presentation,
+  });
   return reviewerDigest === workflow.reviewerRecordDigest && writerDigest === workflow.writerRecordDigest;
 }
 
@@ -409,7 +423,7 @@ export function transitionForWorkflowToolCall(
         ok: false,
         workflow,
         reason:
-          "pr_review_record must use the reviewer walkthrough, quality gate, and findings plus the writer summary and verdict verbatim.",
+          "pr_review_record must use the reviewer walkthrough, quality gate, and findings plus the writer summary, verdict, and STE presentation verbatim.",
       };
     }
     return { ok: true, workflow: { ...workflow, stage: "recording" } };
@@ -584,7 +598,7 @@ export function advanceWorkflowFromFullOutput(workflow: ReviewWorkflowState, out
       return {
         ...workflow,
         stage: "failed",
-        failure: "review-writer returned an invalid structured summary payload.",
+        failure: "review-writer returned an invalid structured summary or STE presentation payload.",
       };
     }
     return {

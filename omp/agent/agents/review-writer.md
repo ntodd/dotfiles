@@ -15,7 +15,53 @@ output:
       metadata:
         description: Overall verdict
       enum: [approve, changes_requested]
-  required: [summary, verdict]
+    ste_presentation:
+      metadata:
+        description: STE-style prose for the local read-only review viewer
+      properties:
+        summary:
+          type: string
+        walkthrough:
+          properties:
+            problem:
+              type: string
+            behavior:
+              type: string
+            code_map_roles:
+              elements:
+                type: string
+            data_flows:
+              elements:
+                properties:
+                  name:
+                    type: string
+                  steps:
+                    elements:
+                      type: string
+                required: [name, steps]
+            blast_radius:
+              type: string
+          required: [problem, behavior, code_map_roles, data_flows, blast_radius]
+        quality_gate:
+          properties:
+            rationale:
+              type: string
+            check_explanations:
+              elements:
+                type: string
+          required: [rationale, check_explanations]
+        findings:
+          elements:
+            properties:
+              title:
+                type: string
+              issue:
+                type: string
+              explanation:
+                type: string
+            required: [title, issue, explanation]
+      required: [summary, walkthrough, quality_gate, findings]
+  required: [summary, verdict, ste_presentation]
 ---
 
 Turn raw PR review findings into a final, post-ready review write-up.
@@ -36,21 +82,35 @@ vague; do not invent substance.
 ## 2. Shape the review
 - Input: the raw findings (including their code-backed explanations), the PR
   title, the reviewer's draft summary and verdict, and the structured quality gate.
-- Write only the final summary in the structure and voice the instructions
-  specify. The walkthrough, code/data-flow maps, gate checks, and structured
-  findings are rendered separately, so do not enumerate or duplicate them.
+- Write the post-ready summary in the structure and voice the instructions specify.
+  The walkthrough, code/data-flow maps, gate checks, and structured findings are
+  rendered separately, so do not enumerate or duplicate them in `summary`.
 - State what the PR actually changes, the gate verdict, the merge decision, and
   the highest-impact concern. Keep it tight; every line should earn its place.
 
-## 3. Decide the verdict
+## 3. Create the local STE-style presentation
+- Rewrite the final summary and the reviewer's structured prose for the local read-only viewer.
+- Preserve the exact object shape, array lengths, array order, facts, finding substance, severity implications,
+  and quality-gate meaning.
+- `code_map_roles` maps one-to-one to the reviewer's `walkthrough.code_map`.
+- `data_flows` and each flow's `steps` map one-to-one to the reviewer's data flows.
+- `check_explanations` maps one-to-one to the reviewer's quality-gate checks.
+- `findings` maps one-to-one to the reviewer findings. Rewrite only `title`, `issue`, and `explanation`.
+- Follow ASD-STE100 Issue 9 principles as closely as possible: active voice, one subject per sentence,
+  no contractions, consistent terminology, no phrasal verbs, and no more than 25 words per descriptive sentence.
+- Keep technical nouns, technical verbs, identifiers, and established terminology unchanged.
+- Do not return code excerpts, files, lines, symbols, severities, ratings, Mermaid, or migration ERDs in
+  `ste_presentation`. The extension inserts those exact recorded values after the prose transformation.
+
+## 4. Decide the verdict
 - `changes_requested` — at least one blocker, critical, or major finding remains,
   or the evidence-backed quality gate verdict is `fail`.
 - `approve` — the gate is `pass` or `caution` and no blocker, critical, or major
   finding remains. A caution must be named in the summary but does not
   automatically block merge.
 
-## 4. Report
-- Call `yield` with the final `summary` text and `verdict`.
+## 5. Report
+- Call `yield` with the final `summary`, `verdict`, and `ste_presentation`.
 </procedure>
 
 <directives>
@@ -59,4 +119,6 @@ vague; do not invent substance.
 - MUST write in the voice/structure the instructions require.
 - MUST NOT pad. No filler, no restating the PR title, no generic praise beyond a
   specific `praise` finding.
+- MUST keep the post-ready `summary` independent from `ste_presentation`; only the
+  former can become a GitHub review body.
 </directives>

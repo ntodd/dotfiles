@@ -9,10 +9,14 @@ import {
   findReviewBaselineId,
   normalizeFindings,
   normalizeWalkthrough,
+  parseSteReviewPresentation,
+  reviewPresentationText,
+  reviewProseForSimplification,
   reviewSubmissionError,
   walkthroughText,
   patchContainsNewLine,
   type PrReviewState,
+  type SteReviewPresentation,
 } from "./review-core.ts";
 
 function reviewState(overrides: Partial<PrReviewState> = {}): PrReviewState {
@@ -40,6 +44,7 @@ function reviewState(overrides: Partial<PrReviewState> = {}): PrReviewState {
     notes: "",
     editedBody: "",
     submitted: false,
+    presentationMode: "original",
     ...overrides,
   };
 }
@@ -390,6 +395,130 @@ describe("fullReviewText", () => {
     assert.match(text, /Senior-engineering gate: CAUTION/);
     assert.match(text, /18: return reloadReview\(defaultState\)/);
     assert.match(text, /Why this occurs: reloadReview reads defaults/);
+  });
+});
+
+describe("review presentation views", () => {
+  const codeExcerpt = [
+    "18: const decision = reloadReview(defaultState);",
+    "19: return decision;",
+  ].join("\n");
+  const findings = normalizeFindings([
+    {
+      file: "src/review.ts",
+      line: 18,
+      severity: "major",
+      title: "State resets during reload",
+      issue: "The user's review decisions disappear after a branch reload.",
+      explanation: "reloadReview reads defaults instead of the persisted state.",
+      code_excerpt: codeExcerpt,
+    },
+  ]);
+  const state = reviewState({
+    walkthrough: {
+      problem: "Reviewers lose decisions on a reachable branch reload.",
+      behavior: "The extension now restores the recorded review state.",
+      codeMap: [
+        {
+          file: "src/review.ts",
+          lines: "12-24",
+          symbol: "reloadReview",
+          role: "Restores persisted review state.",
+        },
+      ],
+      dataFlows: [
+        {
+          name: "Reload",
+          steps: ["session entry", "reloadReview", "interactive list"],
+        },
+      ],
+      mermaid: 'flowchart LR\n  A["session entry"] --> B["reloadReview"]',
+      migrationErd: "",
+      blastRadius: "Review-session state.",
+    },
+    qualityGate: {
+      verdict: "caution",
+      rationale: "The path is sound but reload compatibility needs attention.",
+      checks: [
+        {
+          name: "maintainability",
+          rating: "concern",
+          explanation: "The reload path accepts two persisted shapes.",
+        },
+      ],
+    },
+    findings,
+  });
+  const stePresentation: SteReviewPresentation = {
+    summary: "The change keeps the review state. One reload problem remains.",
+    walkthrough: {
+      problem: "A branch reload can remove the review decisions.",
+      behavior: "The extension now gets the recorded review state.",
+      codeMapRoles: ["This function gets the recorded review state."],
+      dataFlows: [
+        {
+          name: "Review reload",
+          steps: ["Read the session entry.", "Call reloadReview.", "Show the issue list."],
+        },
+      ],
+      blastRadius: "This change applies only to the review-session state.",
+    },
+    qualityGate: {
+      rationale: "The design is satisfactory. The reload compatibility needs attention.",
+      checkExplanations: ["The reload path accepts two stored data shapes."],
+    },
+    findings: [
+      {
+        title: "The reload removes the review decisions",
+        issue: "The review decisions disappear after a branch reload.",
+        explanation: "reloadReview gets the default state. It does not get the recorded state.",
+      },
+    ],
+  };
+
+  it("keeps code evidence out of the prose sent for simplification", () => {
+    const source = JSON.stringify(reviewProseForSimplification(state));
+
+    assert.doesNotMatch(source, /18: const decision = reloadReview/);
+    assert.doesNotMatch(source, /flowchart LR/);
+    assert.match(source, /review decisions disappear/);
+  });
+
+  it("renders STE-style prose with canonical technical evidence", () => {
+    const text = reviewPresentationText(state, "ste", stePresentation);
+
+    assert.match(text, /The change keeps the review state/);
+    assert.match(text, /This function gets the recorded review state/);
+    assert.match(text, /src\/review\.ts:18/);
+    assert.match(text, /`reloadReview`/);
+    assert.match(text, /```mermaid\nflowchart LR/);
+    assert.equal(text.split(codeExcerpt).length - 1, 1);
+    assert.doesNotMatch(text, /Reviewers lose decisions on a reachable branch reload/);
+  });
+
+  it("keeps the original presentation and GitHub body independent from STE prose", () => {
+    const original = reviewPresentationText(state, "original", stePresentation);
+    const body = buildReviewBody(state);
+
+    assert.match(original, /Reviewers lose decisions on a reachable branch reload/);
+    assert.doesNotMatch(original, /The change keeps the review state/);
+    assert.match(body, /The change is sound apart from the findings below/);
+    assert.doesNotMatch(body, /The change keeps the review state/);
+    assert.equal(original.split(codeExcerpt).length - 1, 1);
+  });
+
+  it("parses fenced JSON only when every canonical item has matching prose", () => {
+    const fenced = `\`\`\`json\n${JSON.stringify(stePresentation)}\n\`\`\``;
+
+    assert.deepEqual(parseSteReviewPresentation(fenced, state), stePresentation);
+    assert.throws(
+      () =>
+        parseSteReviewPresentation(
+          JSON.stringify({ ...stePresentation, findings: [] }),
+          state,
+        ),
+      /exactly 1 finding/,
+    );
   });
 });
 

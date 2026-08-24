@@ -27,9 +27,31 @@ const reviewerOutput = JSON.stringify({
   quality_gate: { verdict: "fail", rationale: "A major finding remains.", checks: [] },
   findings: [{ file: "src/review.ts", severity: "major", title: "State drift", issue: "The state can drift." }],
 });
+const stePresentation = {
+  summary: "The final review needs changes.",
+  walkthrough: {
+    problem: "The review state can change.",
+    behavior: "The workflow now uses ordered review phases.",
+    code_map_roles: [],
+    data_flows: [],
+    blast_radius: "",
+  },
+  quality_gate: {
+    rationale: "A major finding remains.",
+    check_explanations: [],
+  },
+  findings: [
+    {
+      title: "The state changes",
+      issue: "The state can change.",
+      explanation: "",
+    },
+  ],
+};
 const writerOutput = JSON.stringify({
   summary: "Final review summary.",
   verdict: "changes_requested",
+  ste_presentation: stePresentation,
 });
 const reviewerResult = [
   '<task-result id="PrReviewer" agent="pr-reviewer" status="completed">',
@@ -67,6 +89,7 @@ const recordPayload = {
   ...reviewIdentity,
   summary: "Final review summary.",
   verdict: "changes_requested",
+  ste_presentation: stePresentation,
   walkthrough: { problem: "State can drift.", behavior: "Enforce ordered review phases." },
   quality_gate: { verdict: "fail", rationale: "A major finding remains.", checks: [] },
   findings: [{ file: "src/review.ts", severity: "major", title: "State drift", issue: "The state can drift." }],
@@ -153,6 +176,13 @@ describe("review workflow enforcement", () => {
     });
     assert.equal(alteredRecord.ok, false);
     assert.match(alteredRecord.reason ?? "", /verbatim/);
+
+    const alteredSteRecord = transitionForWorkflowToolCall(writerDone, "pr_review_record", {
+      ...recordPayload,
+      ste_presentation: { ...stePresentation, summary: "Altered STE summary." },
+    });
+    assert.equal(alteredSteRecord.ok, false);
+    assert.match(alteredSteRecord.reason ?? "", /verbatim/);
 
     const record = transitionForWorkflowToolCall(writerDone, "pr_review_record", recordPayload);
     assert.equal(record.ok, true);

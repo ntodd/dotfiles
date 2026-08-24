@@ -80,6 +80,35 @@ export interface Finding {
   note: string;
 }
 
+export type ReviewPresentationMode = "original" | "ste";
+
+export interface SteDataFlowPresentation {
+  name: string;
+  steps: string[];
+}
+
+export interface SteFindingPresentation {
+  title: string;
+  issue: string;
+  explanation: string;
+}
+
+export interface SteReviewPresentation {
+  summary: string;
+  walkthrough: {
+    problem: string;
+    behavior: string;
+    codeMapRoles: string[];
+    dataFlows: SteDataFlowPresentation[];
+    blastRadius: string;
+  };
+  qualityGate: {
+    rationale: string;
+    checkExplanations: string[];
+  };
+  findings: SteFindingPresentation[];
+}
+
 export interface PrReviewState {
   repo: string;
   pr: number;
@@ -92,6 +121,8 @@ export interface PrReviewState {
   notes: string;
   editedBody: string;
   submitted: boolean;
+  presentationMode: ReviewPresentationMode;
+  stePresentation?: SteReviewPresentation;
   baselineId?: string;
   returnModel?: string;
   returnThinking?: ReviewThinkingLevel;
@@ -114,6 +145,7 @@ export function emptyState(): PrReviewState {
     notes: "",
     editedBody: "",
     submitted: false,
+    presentationMode: "original",
   };
 }
 
@@ -367,6 +399,13 @@ export function qualityGateText(state: PrReviewState): string {
   return lines.join("\n");
 }
 
+function fencedCodeLines(code: string): string[] {
+  const backtickRuns = code.match(/`+/g) ?? [];
+  const fenceLength = Math.max(3, ...backtickRuns.map(run => run.length + 1));
+  const fence = "`".repeat(fenceLength);
+  return [fence, code, fence];
+}
+
 export function findingContextText(finding: Finding): string {
   const location = finding.line ? `${finding.file}:${finding.line}` : finding.file;
   const lines = [
@@ -376,10 +415,7 @@ export function findingContextText(finding: Finding): string {
   ];
   if (finding.explanation) lines.push(`Why this occurs: ${finding.explanation}`);
   if (finding.codeExcerpt) {
-    lines.push(
-      "Relevant code from the PR head:",
-      ...finding.codeExcerpt.split("\n").map(line => `    ${line}`),
-    );
+    lines.push("Relevant code from the PR head:", ...fencedCodeLines(finding.codeExcerpt));
   }
   return lines.join("\n");
 }
@@ -398,6 +434,268 @@ export function fullReviewText(state: PrReviewState): string {
   if (state.findings.length > 0) {
     lines.push("", "Findings:");
     for (const finding of state.findings) lines.push("", findingContextText(finding));
+  }
+  return lines.join("\n");
+}
+
+export function reviewProseForSimplification(state: PrReviewState): SteReviewPresentation {
+  return {
+    summary: state.summary,
+    walkthrough: {
+      problem: state.walkthrough.problem,
+      behavior: state.walkthrough.behavior,
+      codeMapRoles: state.walkthrough.codeMap.map(entry => entry.role),
+      dataFlows: state.walkthrough.dataFlows.map(flow => ({
+        name: flow.name,
+        steps: [...flow.steps],
+      })),
+      blastRadius: state.walkthrough.blastRadius,
+    },
+    qualityGate: {
+      rationale: state.qualityGate.rationale,
+      checkExplanations: state.qualityGate.checks.map(check => check.explanation),
+    },
+    findings: state.findings.map(finding => ({
+      title: finding.title,
+      issue: finding.issue,
+      explanation: finding.explanation,
+    })),
+  };
+}
+
+
+function presentationRecord(value: unknown, field: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`STE response field '${field}' must be an object.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function presentationText(value: unknown, source: string, field: string): string {
+  if (typeof value !== "string") {
+    throw new Error(`STE response field '${field}' must be text.`);
+  }
+  const text = value.trim();
+  if (source.trim() && !text) {
+    throw new Error(`STE response field '${field}' cannot be empty.`);
+  }
+  return text;
+}
+
+function presentationArray(value: unknown, expected: number, singular: string): unknown[] {
+  if (!Array.isArray(value) || value.length !== expected) {
+    const noun = expected === 1 ? singular : `${singular}s`;
+    throw new Error(`STE response must contain exactly ${expected} ${noun}.`);
+  }
+  return value;
+}
+
+function jsonResponseText(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("```") || !trimmed.endsWith("```")) return trimmed;
+  const firstLineEnd = trimmed.indexOf("\n");
+  if (firstLineEnd === -1) return trimmed;
+  return trimmed.slice(firstLineEnd + 1, -3).trim();
+}
+
+export function parseSteReviewPresentation(text: string, state: PrReviewState): SteReviewPresentation {
+  let value: unknown;
+  try {
+    value = JSON.parse(jsonResponseText(text));
+  } catch {
+    throw new Error("STE response must be valid JSON.");
+  }
+
+  const source = reviewProseForSimplification(state);
+  const root = presentationRecord(value, "root");
+  const rawWalkthrough = presentationRecord(root.walkthrough, "walkthrough");
+  const rawQualityGate = presentationRecord(root.qualityGate, "qualityGate");
+  const rawCodeMapRoles = presentationArray(
+    rawWalkthrough.codeMapRoles,
+    source.walkthrough.codeMapRoles.length,
+    "code-map role",
+  );
+  const rawDataFlows = presentationArray(
+    rawWalkthrough.dataFlows,
+    source.walkthrough.dataFlows.length,
+    "data flow",
+  );
+  const rawCheckExplanations = presentationArray(
+    rawQualityGate.checkExplanations,
+    source.qualityGate.checkExplanations.length,
+    "quality-gate explanation",
+  );
+  const rawFindings = presentationArray(root.findings, source.findings.length, "finding");
+
+  return {
+    summary: presentationText(root.summary, source.summary, "summary"),
+    walkthrough: {
+      problem: presentationText(
+        rawWalkthrough.problem,
+        source.walkthrough.problem,
+        "walkthrough.problem",
+      ),
+      behavior: presentationText(
+        rawWalkthrough.behavior,
+        source.walkthrough.behavior,
+        "walkthrough.behavior",
+      ),
+      codeMapRoles: rawCodeMapRoles.map((role, index) =>
+        presentationText(role, source.walkthrough.codeMapRoles[index]!, `walkthrough.codeMapRoles[${index}]`),
+      ),
+      dataFlows: rawDataFlows.map((flow, flowIndex) => {
+        const rawFlow = presentationRecord(flow, `walkthrough.dataFlows[${flowIndex}]`);
+        const sourceFlow = source.walkthrough.dataFlows[flowIndex]!;
+        const rawSteps = presentationArray(
+          rawFlow.steps,
+          sourceFlow.steps.length,
+          `step for data flow ${flowIndex + 1}`,
+        );
+        return {
+          name: presentationText(
+            rawFlow.name,
+            sourceFlow.name,
+            `walkthrough.dataFlows[${flowIndex}].name`,
+          ),
+          steps: rawSteps.map((step, stepIndex) =>
+            presentationText(
+              step,
+              sourceFlow.steps[stepIndex]!,
+              `walkthrough.dataFlows[${flowIndex}].steps[${stepIndex}]`,
+            ),
+          ),
+        };
+      }),
+      blastRadius: presentationText(
+        rawWalkthrough.blastRadius,
+        source.walkthrough.blastRadius,
+        "walkthrough.blastRadius",
+      ),
+    },
+    qualityGate: {
+      rationale: presentationText(
+        rawQualityGate.rationale,
+        source.qualityGate.rationale,
+        "qualityGate.rationale",
+      ),
+      checkExplanations: rawCheckExplanations.map((explanation, index) =>
+        presentationText(
+          explanation,
+          source.qualityGate.checkExplanations[index]!,
+          `qualityGate.checkExplanations[${index}]`,
+        ),
+      ),
+    },
+    findings: rawFindings.map((finding, index) => {
+      const rawFinding = presentationRecord(finding, `findings[${index}]`);
+      const sourceFinding = source.findings[index]!;
+      return {
+        title: presentationText(rawFinding.title, sourceFinding.title, `findings[${index}].title`),
+        issue: presentationText(rawFinding.issue, sourceFinding.issue, `findings[${index}].issue`),
+        explanation: presentationText(
+          rawFinding.explanation,
+          sourceFinding.explanation,
+          `findings[${index}].explanation`,
+        ),
+      };
+    }),
+  };
+}
+
+function steWalkthroughText(state: PrReviewState, ste: SteReviewPresentation): string {
+  const lines = [
+    "PR walkthrough:",
+    `- Problem and reachability: ${ste.walkthrough.problem || "Not established"}`,
+    `- Actual behavior change: ${ste.walkthrough.behavior || "Not established"}`,
+  ];
+
+  if (state.walkthrough.codeMap.length > 0) {
+    lines.push("- Code map:");
+    for (const [index, entry] of state.walkthrough.codeMap.entries()) {
+      const location = entry.lines ? `${entry.file}:${entry.lines}` : entry.file;
+      const symbol = entry.symbol ? ` \`${entry.symbol}\`` : "";
+      lines.push(`  - \`${location}\`${symbol} — ${ste.walkthrough.codeMapRoles[index]}`);
+    }
+  }
+
+  if (state.walkthrough.mermaid) {
+    lines.push(
+      "- Code and data-flow diagram:",
+      "```mermaid",
+      state.walkthrough.mermaid.trim(),
+      "```",
+    );
+  } else if (ste.walkthrough.dataFlows.length > 0) {
+    lines.push("- Data flows:");
+    for (const flow of ste.walkthrough.dataFlows) {
+      lines.push(`  - ${flow.name}: ${flow.steps.join(" → ")}`);
+    }
+  }
+
+  if (state.walkthrough.migrationErd) {
+    lines.push(
+      "- Database ERD:",
+      "```mermaid",
+      state.walkthrough.migrationErd.trim(),
+      "```",
+    );
+  }
+
+  lines.push(`- Blast radius: ${ste.walkthrough.blastRadius || "Not established"}`);
+  return lines.join("\n");
+}
+
+function steQualityGateText(state: PrReviewState, ste: SteReviewPresentation): string {
+  const verdict = state.qualityGate.verdict ? state.qualityGate.verdict.toUpperCase() : "UNKNOWN";
+  const lines = [`Senior-engineering gate: ${verdict}`];
+  if (ste.qualityGate.rationale) lines.push(`- ${ste.qualityGate.rationale}`);
+  for (const [index, check] of state.qualityGate.checks.entries()) {
+    const explanation = ste.qualityGate.checkExplanations[index];
+    lines.push(`- ${check.name.replaceAll("_", " ")} [${check.rating.toUpperCase()}]: ${explanation}`);
+  }
+  return lines.join("\n");
+}
+
+function steFindingContextText(
+  finding: Finding,
+  presentation: SteFindingPresentation,
+): string {
+  const location = finding.line ? `${finding.file}:${finding.line}` : finding.file;
+  const lines = [
+    `[${finding.severity}] ${presentation.title}`,
+    `File: ${location}`,
+    `Issue: ${presentation.issue}`,
+  ];
+  if (presentation.explanation) lines.push(`Why this occurs: ${presentation.explanation}`);
+  if (finding.codeExcerpt) {
+    lines.push("Relevant code from the PR head:", ...fencedCodeLines(finding.codeExcerpt));
+  }
+  return lines.join("\n");
+}
+
+export function reviewPresentationText(
+  state: PrReviewState,
+  mode: ReviewPresentationMode,
+  ste: SteReviewPresentation | undefined = state.stePresentation,
+): string {
+  if (mode === "original") return fullReviewText(state);
+  if (!ste) throw new Error("The STE-style review has not been generated.");
+
+  const lines = [
+    `PR ${state.repo}#${state.pr}: ${state.title}`,
+    "",
+    ste.summary,
+    "",
+    steWalkthroughText(state, ste),
+    "",
+    steQualityGateText(state, ste),
+  ];
+  if (state.verdict) lines.push("", `Verdict: ${state.verdict}`);
+  if (state.findings.length > 0) {
+    lines.push("", "Findings:");
+    for (const [index, finding] of state.findings.entries()) {
+      lines.push("", steFindingContextText(finding, ste.findings[index]!));
+    }
   }
   return lines.join("\n");
 }

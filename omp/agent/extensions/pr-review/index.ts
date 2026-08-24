@@ -5,9 +5,11 @@
 //                    and persist the findings via the pr_review_record tool.
 //   pr_review_record  LLM-facing tool the review calls to store the summary,
 //                    verdict, and structured findings in the session.
-//   /pr-issues       interactive issue list: flag issues for inline GitHub
-//                    comments, attach notes, have a fast tool-free discussion,
-//                    investigate deeply on demand, and submit one atomic review.
+//   /pr-view         scrollable full-review viewer with Original and STE-style
+//                    prose; exact recorded code and diagrams stay unchanged.
+//   /pr-issues       interactive issue list: view the full review, flag issues
+//                    for inline GitHub comments, attach notes, discuss, investigate,
+//                    and submit one atomic review.
 //
 // Persistence: state lives in namespaced `custom` entries on the active session
 // branch. The LLM-visible summary is a stable baseline for short issue
@@ -28,6 +30,7 @@ import type {
   Theme,
 } from "@oh-my-pi/pi-coding-agent";
 import { IssueList, type IssueListAction } from "./list-ui.ts";
+import { ReviewViewer, type ReviewViewerAction } from "./view-ui.ts";
 import {
   allowedReviewEvents,
   buildReviewBody,
@@ -39,13 +42,16 @@ import {
   findingContextText,
   normalizeFindings,
   normalizeWalkthrough,
+  parseSteReviewPresentation,
   qualityGateText,
   patchContainsNewLine,
   reviewEventLabel,
+  reviewPresentationText,
   reviewSubmissionError,
   severityRank,
   type PrReviewState,
   type ReviewEvent,
+  type ReviewPresentationMode,
   walkthroughText,
 } from "./review-core.ts";
 import {
@@ -95,6 +101,7 @@ const REVIEW_BODY_OPTIONS = [
   },
 ] as const;
 
+
 interface QuickChatRuntime {
   activeTools?: string[];
 }
@@ -115,23 +122,37 @@ type SessionEntry = {
 // ============================================================================
 
 
+function hydrateState(data: Partial<PrReviewState>): PrReviewState {
+  const state: PrReviewState = {
+    ...emptyState(),
+    ...data,
+    presentationMode: data.presentationMode === "ste" ? "ste" : "original",
+    walkthrough: normalizeWalkthrough(data.walkthrough),
+    findings: normalizeFindings(data.findings),
+    stePresentation: undefined,
+  };
+  if (data.stePresentation) {
+    try {
+      state.stePresentation = parseSteReviewPresentation(JSON.stringify(data.stePresentation), state);
+    } catch {
+      state.stePresentation = undefined;
+    }
+  }
+  return state;
+}
+
 /** Rebuild state from the newest `com.nate.pr-review.state` entry on the branch. */
 function stateFromBranch(sm: { getBranch(leafId?: string | null): unknown[] }): AnyState {
   const branch = sm.getBranch();
   for (let i = branch.length - 1; i >= 0; i--) {
     const entry = branch[i] as SessionEntry | null;
     if (entry && entry.type === "custom" && entry.customType === STATE_TYPE && entry.data) {
-      const data = entry.data as Partial<PrReviewState>;
-      return {
-        ...emptyState(),
-        ...data,
-        walkthrough: normalizeWalkthrough(data.walkthrough),
-        findings: normalizeFindings(data.findings),
-      };
+      return hydrateState(entry.data as Partial<PrReviewState>);
     }
   }
   return null;
 }
+
 
 interface WorkflowBranchContext {
   stored: ReviewWorkflowState;
@@ -432,14 +453,7 @@ async function submitReview(
 
 function renderSummary(message: CustomMessage<PrReviewState>, _options: { expanded: boolean }, theme: Theme) {
   const raw = (message.details ?? null) as Partial<PrReviewState> | null;
-  const state = raw
-    ? {
-        ...emptyState(),
-        ...raw,
-        walkthrough: normalizeWalkthrough(raw.walkthrough),
-        findings: normalizeFindings(raw.findings),
-      }
-    : null;
+  const state = raw ? hydrateState(raw) : null;
   if (!state) return new Text("", 1, 0);
   const lines: string[] = [theme.fg("accent", `PR Review — #${state.pr} ${state.title}`.trimEnd())];
   if (state.verdict) lines.push(theme.fg("muted", `Verdict: ${state.verdict}`));
@@ -452,8 +466,48 @@ function renderSummary(message: CustomMessage<PrReviewState>, _options: { expand
   for (const finding of state.findings) counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
   const parts = Object.entries(counts).map(([severity, count]) => `${count} ${severity}`);
   if (parts.length > 0) lines.push("", theme.fg("muted", `${state.findings.length} finding(s): ${parts.join(", ")}`));
-  lines.push("", theme.fg("dim", "Run /pr-issues to inspect code, discuss the gate, investigate, or submit."));
+  lines.push("", theme.fg("dim", "Run /pr-view for the full review or /pr-issues to discuss and submit."));
   return new Markdown(lines.join("\n"), 1, 0, getMarkdownTheme());
+}
+
+async function runReviewViewer(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  stateOverride?: PrReviewState,
+): Promise<void> {
+  const state = stateOverride ?? stateFromBranch(ctx.sessionManager);
+  if (!state || !state.repo || !state.pr) {
+    ctx.ui.notify("No recorded review is available. Run /pr-review <n> first.", "warning");
+    return;
+  }
+  if (ctx.mode !== "tui") {
+    ctx.ui.notify("The review viewer needs the TUI.", "error");
+    return;
+  }
+
+  let mode: ReviewPresentationMode = state.presentationMode;
+  for (;;) {
+    if (mode === "ste" && !state.stePresentation) {
+      ctx.ui.notify(
+        "This review has no STE-style presentation. Run /pr-review again to generate it.",
+        "warning",
+      );
+      mode = "original";
+      state.presentationMode = mode;
+      pi.appendEntry(STATE_TYPE, state);
+      continue;
+    }
+
+    const text = reviewPresentationText(state, mode);
+    const action = await ctx.ui.custom<ReviewViewerAction>(
+      (tui, theme, _keybindings, done) => new ReviewViewer(tui, theme, mode, text, done),
+    );
+    if (action.kind === "close") return;
+
+    mode = action.mode;
+    state.presentationMode = mode;
+    pi.appendEntry(STATE_TYPE, state);
+  }
 }
 
 // ============================================================================
@@ -516,6 +570,11 @@ async function runIssuesLoop(
     );
 
     if (action.kind === "close") return;
+
+    if (action.kind === "view") {
+      await runReviewViewer(pi, ctx, state);
+      continue;
+    }
 
     if (action.kind === "toggle-flag") {
       const finding = state.findings[action.index];
@@ -796,6 +855,36 @@ export default function (pi: ExtensionAPI): void {
       title: pi.zod.string().describe("PR title"),
       summary: pi.zod.string().describe("Review summary, written in the reviewer's voice exactly as the user wants it"),
       verdict: pi.zod.string().describe("Overall verdict, e.g. approve or changes_requested"),
+      ste_presentation: pi.zod.object({
+        summary: pi.zod.string().describe("STE-style rewrite of the final review summary"),
+        walkthrough: pi.zod.object({
+          problem: pi.zod.string().describe("STE-style rewrite of walkthrough.problem"),
+          behavior: pi.zod.string().describe("STE-style rewrite of walkthrough.behavior"),
+          code_map_roles: pi.zod
+            .array(pi.zod.string())
+            .describe("STE-style code-map roles in the exact original order"),
+          data_flows: pi.zod.array(
+            pi.zod.object({
+              name: pi.zod.string(),
+              steps: pi.zod.array(pi.zod.string()),
+            }),
+          ),
+          blast_radius: pi.zod.string().describe("STE-style rewrite of walkthrough.blast_radius"),
+        }),
+        quality_gate: pi.zod.object({
+          rationale: pi.zod.string().describe("STE-style rewrite of quality_gate.rationale"),
+          check_explanations: pi.zod
+            .array(pi.zod.string())
+            .describe("STE-style check explanations in the exact original order"),
+        }),
+        findings: pi.zod.array(
+          pi.zod.object({
+            title: pi.zod.string(),
+            issue: pi.zod.string(),
+            explanation: pi.zod.string(),
+          }),
+        ),
+      }),
       walkthrough: pi.zod.object({
         problem: pi.zod.string().describe("Problem being solved, who reaches it, and whether it is worth permanent code"),
         behavior: pi.zod.string().describe("What behavior the PR actually changes"),
@@ -876,6 +965,24 @@ export default function (pi: ExtensionAPI): void {
         },
         findings: normalizeFindings(params.findings),
       };
+      state.stePresentation = parseSteReviewPresentation(
+        JSON.stringify({
+          summary: params.ste_presentation.summary,
+          walkthrough: {
+            problem: params.ste_presentation.walkthrough.problem,
+            behavior: params.ste_presentation.walkthrough.behavior,
+            codeMapRoles: params.ste_presentation.walkthrough.code_map_roles,
+            dataFlows: params.ste_presentation.walkthrough.data_flows,
+            blastRadius: params.ste_presentation.walkthrough.blast_radius,
+          },
+          qualityGate: {
+            rationale: params.ste_presentation.quality_gate.rationale,
+            checkExplanations: params.ste_presentation.quality_gate.check_explanations,
+          },
+          findings: params.ste_presentation.findings,
+        }),
+        state,
+      );
       const details: ReviewRecordDetails = {
         recorded: state.findings.length,
         repo: state.repo,
@@ -914,11 +1021,15 @@ export default function (pi: ExtensionAPI): void {
         refreshWorkflowProgress(ctx, completed);
       }
 
+      if (ctx.mode === "tui") await runReviewViewer(pi, ctx, state);
+
       return {
         content: [
           {
             type: "text",
-            text: `Recorded ${state.findings.length} finding(s) for ${state.repo}#${state.pr}. The user can now run /pr-issues to review them interactively.`,
+            text:
+              `Recorded ${state.findings.length} finding(s) for ${state.repo}#${state.pr}. ` +
+              "The review viewer opened automatically; /pr-view reopens it and /pr-issues continues the workflow.",
           },
         ],
         details,
@@ -966,21 +1077,28 @@ export default function (pi: ExtensionAPI): void {
         `is exactly \`review-writer\`, and whose schemaMode is \`strict\`. In that task's \`task\` text, include the ` +
         `entire pr-reviewer structured output verbatim between lines containing exactly ` +
         `\`--- PR_REVIEWER_RESULT_BEGIN ---\` and \`--- PR_REVIEWER_RESULT_END ---\`. Ask the writer only for its ` +
-        `structured final summary and verdict; never substitute a generic agent or ask it to research the code.\n` +
+        `structured final summary, verdict, and STE-style presentation; never substitute a generic agent or ask it ` +
+        `to research the code.\n` +
         `3. Call \`pr_review_record\` exactly once with repo=${JSON.stringify(meta.repo)}, pr=${meta.pr}, ` +
-        `title=${JSON.stringify(meta.title)}, the review-writer summary and verdict, and the pr-reviewer walkthrough, ` +
-        `quality_gate, and findings verbatim.\n` +
-        `4. Present the recorded review to the user. Include the walkthrough's \`mermaid\` source as a fenced Mermaid ` +
-        `code block so OMP renders the code/data-flow diagram. When \`migration_erd\` is non-empty, include it as a ` +
-        `second fenced Mermaid block labeled as the database ERD. Then show the gate verdict and findings without ` +
-        `duplicating either custom agent's research.`;
+        `title=${JSON.stringify(meta.title)}, the review-writer summary, verdict, and \`ste_presentation\`, plus the ` +
+        `pr-reviewer walkthrough, quality_gate, and findings verbatim.\n` +
+        `4. The extension opens the recorded review automatically. Do not restate or duplicate the review after ` +
+        `\`pr_review_record\` returns. Tell the user that \`/pr-view\` reopens the viewer and \`/pr-issues\` opens ` +
+        `the discussion and submission workflow.`;
       pi.sendUserMessage(prompt);
       ctx.ui.notify(`Reviewing PR #${meta.pr} — ${meta.title}`, "info");
     },
   });
 
+  pi.registerCommand("pr-view", {
+    description: "Read the recorded PR review and toggle Original or STE-style prose",
+    handler: async (_args, ctx) => {
+      await runReviewViewer(pi, ctx);
+    },
+  });
+
   pi.registerCommand("pr-issues", {
-    description: "Open the interactive PR-issue list (flag, note, discuss, investigate, submit)",
+    description: "Open the interactive PR-issue list (view, flag, note, discuss, investigate, submit)",
     handler: async (_args, ctx) => {
       await runIssuesLoop(pi, ctx, quickChat);
     },
