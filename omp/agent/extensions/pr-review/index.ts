@@ -3,6 +3,8 @@
 // Surface:
 //   /pr-review [n] [fast]  fetch a PR via `gh`, then review it with the thorough
 //                          reviewer or the configured `@smol` model in fast mode.
+//   Option+O, /pr-view    append the alternate Original/STE reading view without
+//                         changing the review text supplied to the model.
 //   pr_review_record  LLM-facing tool the review calls to store the summary,
 //                    verdict, and structured findings in the session.
 //   /pr-issues       interactive issue list: flag issues for inline GitHub
@@ -32,6 +34,7 @@ import {
   allowedReviewEvents,
   buildReviewBody,
   buildReviewSubmissionPlan,
+  buildReviewViewMessage,
   defaultReviewEvent,
   emptyState,
   fullReviewText,
@@ -41,15 +44,17 @@ import {
   normalizeWalkthrough,
   parseSteReviewPresentation,
   parsePrReviewArgs,
-  qualityGateText,
   patchContainsNewLine,
+  qualityGateText,
   reviewEventLabel,
+  reviewMarkdownTheme,
   reviewPresentationText,
   reviewSubmissionError,
   severityRank,
   type PrReviewState,
   type PrReviewCommand,
   type ReviewEvent,
+  type ReviewPresentationMode,
   walkthroughText,
 } from "./review-core.ts";
 import {
@@ -81,6 +86,7 @@ type PiExec = {
 
 const STATE_TYPE = "com.nate.pr-review.state";
 const SUMMARY_TYPE = "com.nate.pr-review.summary";
+const VIEW_TYPE = "com.nate.pr-review.view";
 const WORKFLOW_TYPE = "com.nate.pr-review.workflow";
 const PROGRESS_WIDGET = "pr-review-progress";
 const PROGRESS_STATUS = "pr-review";
@@ -450,27 +456,54 @@ async function submitReview(
 // ============================================================================
 
 function renderSummary(
-  message: CustomMessage<PrReviewState>,
-  { expanded }: { expanded: boolean },
-  _theme: Theme,
+  message: CustomMessage<PrReviewState & { viewMode?: ReviewPresentationMode }>,
+  _options: { expanded: boolean },
+  theme: Theme,
 ) {
-  const raw = (message.details ?? null) as Partial<PrReviewState> | null;
-  const state = raw ? hydrateState(raw) : null;
-  if (!state) return new Text("", 1, 0);
-
-  const mode = expanded && state.stePresentation ? "ste" : "original";
+  const raw = (message.details ?? null) as
+    | (Partial<PrReviewState> & { viewMode?: ReviewPresentationMode })
+    | null;
+  if (!raw) return new Text("", 1, 0);
+  const { viewMode, ...reviewState } = raw;
+  const state = hydrateState(reviewState);
+  const mode = viewMode === "ste" && state.stePresentation ? "ste" : "original";
   const hint =
     mode === "ste"
-      ? "**Review view: STE-style** · Press `Ctrl+O` for Original."
+      ? "**Review view: STE-style** · Press `⌥O` for Original."
       : state.stePresentation
-        ? "**Review view: Original** · Press `Ctrl+O` for STE-style."
+        ? "**Review view: Original** · Press `⌥O` for STE-style."
         : "**Review view: Original** · This recorded review has no STE-style presentation.";
-  return new Markdown(
-    `${hint}\n\n${reviewPresentationText(state, mode)}`,
-    1,
-    0,
+  const markdownTheme = reviewMarkdownTheme(
     getMarkdownTheme(),
+    text => theme.fg("mdCodeBlockBorder", text),
   );
+  return new Markdown(`${hint}\n\n${reviewPresentationText(state, mode)}`, 1, 0, markdownTheme);
+}
+
+function showReviewView(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  viewModes: WeakMap<object, ReviewPresentationMode>,
+  requestedMode?: ReviewPresentationMode,
+): void {
+  const state = stateFromBranch(ctx.sessionManager);
+  if (!state) {
+    ctx.ui.notify("No recorded PR review is available. Run /pr-review first.", "warning");
+    return;
+  }
+
+  const currentMode = viewModes.get(ctx.sessionManager as object) ?? "original";
+  const mode = requestedMode ?? (currentMode === "original" ? "ste" : "original");
+  if (mode === "ste" && !state.stePresentation) {
+    ctx.ui.notify("This recorded review has no STE-style presentation.", "warning");
+    return;
+  }
+
+  viewModes.set(ctx.sessionManager as object, mode);
+  pi.sendMessage({
+    customType: VIEW_TYPE,
+    ...buildReviewViewMessage(state, mode),
+  });
 }
 
 // ============================================================================
@@ -694,6 +727,7 @@ async function runIssuesLoop(
 
 export default function (pi: ExtensionAPI): void {
   const quickChat: QuickChatRuntime = {};
+  const viewModes = new WeakMap<object, ReviewPresentationMode>();
 
   pi.on("tool_call", async (event, ctx) => {
     const branch = workflowBranchContext(ctx.sessionManager);
@@ -799,6 +833,12 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.registerMessageRenderer(SUMMARY_TYPE, renderSummary);
+  pi.registerMessageRenderer(VIEW_TYPE, renderSummary);
+  // OMP calls the macOS Option modifier "alt" in its cross-platform KeyId API.
+  pi.registerShortcut("alt+o", {
+    description: "Toggle the recorded PR review between Original and STE-style",
+    handler: ctx => showReviewView(pi, ctx, viewModes),
+  });
 
   pi.registerTool({
     name: "pr_review_record",
@@ -956,6 +996,7 @@ export default function (pi: ExtensionAPI): void {
       // the baseline leaf for issue diversions; state stays its ancestor, so
       // every discussion fork can recover the original review.
       pi.appendEntry(STATE_TYPE, state);
+      viewModes.set(ctx.sessionManager as object, "original");
       pi.sendMessage({
         customType: SUMMARY_TYPE,
         content: fullReviewText(state),
@@ -987,7 +1028,7 @@ export default function (pi: ExtensionAPI): void {
             type: "text",
             text:
               `Recorded ${state.findings.length} finding(s) for ${state.repo}#${state.pr}. ` +
-              "The full review is above; Ctrl+O toggles Original/STE and /pr-issues opens review actions.",
+              "The full review is above; ⌥O toggles Original/STE and /pr-issues opens review actions.",
           },
         ],
         details,
@@ -1050,7 +1091,7 @@ export default function (pi: ExtensionAPI): void {
         `title=${JSON.stringify(meta.title)}, the review-writer summary, verdict, and \`ste_presentation\`, plus the ` +
         `reviewer walkthrough, quality_gate, and findings verbatim.\n` +
         `4. The extension displays the full recorded review in the transcript. Do not restate or duplicate it after ` +
-        `\`pr_review_record\` returns. Tell the user that \`Ctrl+O\` toggles Original and STE-style views and ` +
+        `\`pr_review_record\` returns. Tell the user that \`⌥O\` toggles Original and STE-style views and ` +
         `\`/pr-issues\` opens the discussion and submission workflow.`;
       pi.sendUserMessage(prompt);
       const mode = command.mode === "fast" ? " using the configured @smol model" : "";
@@ -1058,6 +1099,23 @@ export default function (pi: ExtensionAPI): void {
     },
   });
 
+
+  pi.registerCommand("pr-view", {
+    description: "Show the recorded review in Original or STE style: /pr-view [original|ste]",
+    handler: async (args, ctx) => {
+      const requested = args.trim().toLowerCase();
+      if (requested && requested !== "original" && requested !== "ste") {
+        ctx.ui.notify("Usage: /pr-view [original|ste]", "error");
+        return;
+      }
+      showReviewView(
+        pi,
+        ctx,
+        viewModes,
+        requested ? (requested as ReviewPresentationMode) : undefined,
+      );
+    },
+  });
 
   pi.registerCommand("pr-issues", {
     description: "Open the interactive PR-issue list (flag, note, discuss, investigate, decide, submit)",

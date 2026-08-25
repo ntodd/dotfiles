@@ -126,6 +126,16 @@ export interface PrReviewState {
   returnModel?: string;
   returnThinking?: ReviewThinkingLevel;
 }
+export interface ReviewViewDetails extends PrReviewState {
+  viewMode: ReviewPresentationMode;
+}
+
+export interface ReviewViewMessage {
+  content: "";
+  display: true;
+  details: ReviewViewDetails;
+}
+
 
 export function emptyState(): PrReviewState {
   return {
@@ -146,6 +156,20 @@ export function emptyState(): PrReviewState {
     submitted: false,
   };
 }
+export function buildReviewViewMessage(
+  state: PrReviewState,
+  viewMode: ReviewPresentationMode,
+): ReviewViewMessage {
+  if (viewMode === "ste" && !state.stePresentation) {
+    throw new Error("The STE-style review has not been generated.");
+  }
+  return {
+    content: "",
+    display: true,
+    details: { ...state, viewMode },
+  };
+}
+
 
 export type ReviewRunMode = "standard" | "fast";
 
@@ -417,11 +441,58 @@ export function qualityGateText(state: PrReviewState): string {
   return lines.join("\n");
 }
 
-function fencedCodeLines(code: string): string[] {
+const CODE_LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
+  ".ex": "elixir",
+  ".exs": "elixir",
+  ".heex": "html",
+  ".js": "javascript",
+  ".jsx": "jsx",
+  ".ts": "typescript",
+  ".tsx": "tsx",
+  ".py": "python",
+  ".rb": "ruby",
+  ".rs": "rust",
+  ".sh": "bash",
+  ".sql": "sql",
+  ".yml": "yaml",
+  ".yaml": "yaml",
+};
+
+function codeLanguage(file: string): string {
+  const extensionIndex = file.lastIndexOf(".");
+  if (extensionIndex === -1) return "text";
+  return CODE_LANGUAGE_BY_EXTENSION[file.slice(extensionIndex).toLowerCase()] ?? "text";
+}
+function fencedCodeLines(code: string, file: string): string[] {
   const backtickRuns = code.match(/`+/g) ?? [];
   const fenceLength = Math.max(3, ...backtickRuns.map(run => run.length + 1));
   const fence = "`".repeat(fenceLength);
-  return [fence, code, fence];
+  return [`${fence}${codeLanguage(file)}`, code, fence];
+}
+
+interface MarkdownCodeTheme {
+  codeBlockBorder(text: string): string;
+  highlightCode?: (code: string, language?: string) => string[];
+}
+
+export function reviewMarkdownTheme<T extends MarkdownCodeTheme>(
+  base: T,
+  styleRail: (text: string) => string,
+): T {
+  const highlightCode = base.highlightCode;
+  return {
+    ...base,
+    codeBlockBorder: text => {
+      const language = text.replace(/^`{3,}/, "").trim();
+      return styleRail(language ? `┌─ ${language}` : "└─");
+    },
+    ...(highlightCode
+      ? {
+          highlightCode: (code: string, language?: string) =>
+            highlightCode(code, language).map(line => `${styleRail("│")} ${line}`),
+        }
+      : {}),
+  } as T;
 }
 
 export function findingContextText(finding: Finding): string {
@@ -433,7 +504,7 @@ export function findingContextText(finding: Finding): string {
   ];
   if (finding.explanation) lines.push(`Why this occurs: ${finding.explanation}`);
   if (finding.codeExcerpt) {
-    lines.push("Relevant code from the PR head:", ...fencedCodeLines(finding.codeExcerpt));
+    lines.push("Relevant code from the PR head:", ...fencedCodeLines(finding.codeExcerpt, finding.file));
   }
   return lines.join("\n");
 }
@@ -721,7 +792,7 @@ function steFindingContextText(
     appendSteSentences(lines, "Why this occurs", presentation.explanation);
   }
   if (finding.codeExcerpt) {
-    lines.push("", "Relevant code from the PR head:", ...fencedCodeLines(finding.codeExcerpt));
+    lines.push("", "Relevant code from the PR head:", ...fencedCodeLines(finding.codeExcerpt, finding.file));
   }
   return lines.join("\n");
 }

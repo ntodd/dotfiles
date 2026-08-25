@@ -5,6 +5,7 @@ import {
   allowedReviewEvents,
   buildReviewBody,
   buildReviewSubmissionPlan,
+  buildReviewViewMessage,
   defaultReviewEvent,
   fullReviewText,
   findReviewBaselineId,
@@ -12,11 +13,12 @@ import {
   normalizeWalkthrough,
   parseSteReviewPresentation,
   parsePrReviewArgs,
+  patchContainsNewLine,
+  reviewMarkdownTheme,
   reviewPresentationText,
   reviewProseForSimplification,
   reviewSubmissionError,
   walkthroughText,
-  patchContainsNewLine,
   type PrReviewState,
   type SteReviewPresentation,
 } from "./review-core.ts";
@@ -406,6 +408,7 @@ describe("fullReviewText", () => {
     assert.doesNotMatch(walkthroughText(state, { includeMermaid: false }), /```mermaid/);
     assert.match(text, /Senior-engineering gate: CAUTION/);
     assert.match(text, /18: return reloadReview\(defaultState\)/);
+    assert.match(text, /```typescript\n18: return reloadReview/);
     assert.match(text, /Why this occurs: reloadReview reads defaults/);
   });
 });
@@ -533,6 +536,33 @@ describe("review presentation views", () => {
     assert.match(body, /The change is sound apart from the findings below/);
     assert.doesNotMatch(body, /The change keeps the review state/);
     assert.equal(original.split(codeExcerpt).length - 1, 1);
+  });
+
+  it("builds display-only view messages without adding STE prose to model context", () => {
+    const message = buildReviewViewMessage({ ...state, stePresentation }, "ste");
+
+    assert.equal(message.content, "");
+    assert.equal(message.display, true);
+    assert.equal(message.details.viewMode, "ste");
+    assert.equal(message.details.summary, state.summary);
+    assert.doesNotMatch(message.content, /The change keeps the review state/);
+  });
+
+  it("renders highlighted code with a rail instead of literal fence rows", () => {
+    const theme = reviewMarkdownTheme(
+      {
+        codeBlockBorder: (text: string) => `border:${text}`,
+        highlightCode: (code: string) => code.split("\n"),
+      },
+      text => `rail:${text}`,
+    );
+
+    assert.equal(theme.codeBlockBorder("```typescript"), "rail:┌─ typescript");
+    assert.equal(theme.codeBlockBorder("```"), "rail:└─");
+    assert.deepEqual(theme.highlightCode?.("first\nsecond", "typescript"), [
+      "rail:│ first",
+      "rail:│ second",
+    ]);
   });
 
   it("parses fenced JSON only when every canonical item has matching prose", () => {
