@@ -1,7 +1,7 @@
 ---
 description: Give LiveView submissions immediate latency feedback with `phx-disable-with` or built-in loading-state styling.
 globs: ["*.heex", "*.ex"]
-condition: '<(?:\.button|button)\b(?=[^>]*\stype\s*=\s*"submit")(?![^>]*\sphx-disable-with(?:\s|=|>))[^>]+>'
+condition: '<(?:\.button|button)\b(?=[^>]*\stype\s*=\s*(?:"submit"|\{\s*:submit\s*\}))(?![^>]*\sphx-disable-with(?:\s|=|>))[^>]+>'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
 ---
 

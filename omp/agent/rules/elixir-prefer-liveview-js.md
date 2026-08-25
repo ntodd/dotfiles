@@ -1,7 +1,7 @@
 ---
 description: Prefer `Phoenix.LiveView.JS` commands over a custom hook for simple DOM behavior and transitions.
 globs: ["*.heex", "*.ex"]
-condition: 'phx-hook\s*=\s*"[^.][^"]*"'
+condition: 'phx-hook\s*=\s*(?:"[^.][^"]*"|\{[^}]+\})'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
 ---
 

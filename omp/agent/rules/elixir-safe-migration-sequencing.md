@@ -1,7 +1,7 @@
 ---
 description: Sequence Ecto migrations to avoid long locks, table rewrites, and incompatible rolling deployments.
 globs: ["priv/repo/migrations/*.exs", "priv/*/migrations/*.exs"]
-condition: '\bcreate\s+(?:unique_)?index\s*\(|\badd\s+:[a-z_]\w*\s*,\s*references\s*\(|\b(?:modify|remove|rename)\s+(?::|table\s*\()'
+condition: '\bcreate\s+(?:unique_)?index\s*\(|\badd\s+:[a-z_]\w*\s*,\s*references\s*\(|\b(?:modify|remove|rename)\s+(?::|table\s*\()|\b(?:add|modify)\s+:[a-z_]\w*\s*,[^\n]*(?:default|null)\s*:'
 scope: [tool:edit(priv/repo/migrations/*.exs), tool:write(priv/repo/migrations/*.exs), tool:edit(priv/*/migrations/*.exs), tool:write(priv/*/migrations/*.exs)]
 ---
 
