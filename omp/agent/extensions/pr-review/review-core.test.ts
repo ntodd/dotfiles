@@ -46,7 +46,6 @@ function reviewState(overrides: Partial<PrReviewState> = {}): PrReviewState {
     notes: "",
     editedBody: "",
     submitted: false,
-    presentationMode: "original",
     ...overrides,
   };
 }
@@ -283,6 +282,17 @@ describe("buildReviewSubmissionPlan", () => {
         comments,
       },
     });
+  });
+
+  it("approves a review with no findings, comments, or body", () => {
+    const plan = buildReviewSubmissionPlan(reviewState({ findings: [] }), "APPROVE", "");
+
+    assert.deepEqual(plan, {
+      create: {
+        event: "APPROVE",
+      },
+    });
+    assert.equal(reviewSubmissionError("APPROVE", "", 0, "reviewer", "author"), null);
   });
 });
 

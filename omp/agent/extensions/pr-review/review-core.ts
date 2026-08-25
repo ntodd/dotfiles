@@ -121,7 +121,6 @@ export interface PrReviewState {
   notes: string;
   editedBody: string;
   submitted: boolean;
-  presentationMode: ReviewPresentationMode;
   stePresentation?: SteReviewPresentation;
   baselineId?: string;
   returnModel?: string;
@@ -145,7 +144,6 @@ export function emptyState(): PrReviewState {
     notes: "",
     editedBody: "",
     submitted: false,
-    presentationMode: "original",
   };
 }
 
@@ -812,7 +810,7 @@ export function buildReviewSubmissionPlan(
     create: {
       ...(reviewBody ? { body: reviewBody } : {}),
       event,
-      comments,
+      ...(comments.length > 0 ? { comments } : {}),
     },
   };
 }

@@ -10,7 +10,6 @@
 //   /                 filter by text
 //   enter / c         quick tool-free discussion
 //   i                 investigate with the issue-digger agent
-//   v                 open the full review viewer and switch presentation format
 //   o                 discuss the PR walkthrough and senior-engineering gate
 //   m                 toggle "flag for inline PR comment"
 //   n                 edit a personal note for the issue
@@ -30,7 +29,6 @@ import { getSelectListTheme, type Theme } from "@oh-my-pi/pi-coding-agent";
 
 export type IssueListAction =
   | { kind: "overview" }
-  | { kind: "view" }
   | { kind: "toggle-flag"; index: number }
   | { kind: "edit-note"; index: number }
   | { kind: "chat"; index: number }
@@ -56,7 +54,7 @@ function severityColor(severity: string): "error" | "warning" | "success" | "mut
 }
 
 export class IssueList extends Container {
-  #list: SelectList;
+  #list?: SelectList;
   #theme: Theme;
   #done: (result: IssueListAction) => void;
   #selectedFindingIndex: number;
@@ -73,23 +71,25 @@ export class IssueList extends Container {
     super();
     this.#theme = theme;
     this.#done = done;
-    this.#selectedFindingIndex = items[0]?.index ?? 0;
+    this.#selectedFindingIndex = items[0]?.index ?? -1;
     this.#header = header;
 
-    const selectItems: SelectItem[] = items.map(row => ({
-      value: String(row.index),
-      label: `${theme.fg(severityColor(row.severity), row.severity.toUpperCase())}  ${row.title}`,
-      icon: row.flagged ? "⚑" : undefined,
-      description: row.noted ? `${row.location} · note` : row.location,
-    }));
-    this.#list = new SelectList(selectItems, Math.min(items.length, 14), getSelectListTheme());
-    this.#list.onSelectionChange = item => {
-      this.#selectedFindingIndex = Number(item.value);
-    };
-    this.#list.onSelect = item => {
-      this.#done({ kind: "chat", index: Number(item.value) });
-    };
-    this.addChild(this.#list);
+    if (items.length > 0) {
+      const selectItems: SelectItem[] = items.map(row => ({
+        value: String(row.index),
+        label: `${theme.fg(severityColor(row.severity), row.severity.toUpperCase())}  ${row.title}`,
+        icon: row.flagged ? "⚑" : undefined,
+        description: row.noted ? `${row.location} · note` : row.location,
+      }));
+      this.#list = new SelectList(selectItems, Math.min(items.length, 14), getSelectListTheme());
+      this.#list.onSelectionChange = item => {
+        this.#selectedFindingIndex = Number(item.value);
+      };
+      this.#list.onSelect = item => {
+        this.#done({ kind: "chat", index: Number(item.value) });
+      };
+      this.addChild(this.#list);
+    }
     void tui;
     void keybindings;
   }
@@ -99,6 +99,14 @@ export class IssueList extends Container {
     // navigation and filtering fall through to the select list.
     if (matchesKey(data, "escape") || data === "q") {
       this.#done({ kind: "close" });
+      return;
+    }
+    if (!this.#list) {
+      if (matchesKey(data, "enter") || data === "s") {
+        this.#done({ kind: "submit" });
+      } else if (data === "o") {
+        this.#done({ kind: "overview" });
+      }
       return;
     }
     if (data === "m") {
@@ -117,10 +125,6 @@ export class IssueList extends Container {
       this.#done({ kind: "investigate", index: this.#selectedFindingIndex });
       return;
     }
-    if (data === "v") {
-      this.#done({ kind: "view" });
-      return;
-    }
     if (data === "o") {
       this.#done({ kind: "overview" });
       return;
@@ -137,20 +141,31 @@ export class IssueList extends Container {
     const lines: string[] = [];
     lines.push(this.#theme.fg("accent", this.#header));
     lines.push("");
-    for (const line of this.#list.render(inner)) {
-      lines.push(truncateToWidth(replaceTabs(line), width));
+    if (this.#list) {
+      for (const line of this.#list.render(inner)) {
+        lines.push(truncateToWidth(replaceTabs(line), width));
+      }
+      lines.push("");
+      const help = this.#theme.fg(
+        "muted",
+        "enter/c: discuss  i: investigate  o: overview  m: flag  n: note  s: decide/submit  /: filter  esc/q: close",
+      );
+      lines.push(truncateToWidth(help, width));
+    } else {
+      lines.push(this.#theme.fg("success", "No findings. Press Enter or s to choose the review decision."));
+      lines.push("");
+      lines.push(
+        truncateToWidth(
+          this.#theme.fg("muted", "enter/s: decide and submit  o: overview  esc/q: close"),
+          width,
+        ),
+      );
     }
-    lines.push("");
-    const help = this.#theme.fg(
-      "muted",
-      "enter/c: discuss  i: investigate  v: view  o: overview  m: flag  n: note  s: submit  /: filter  esc/q: close",
-    );
-    lines.push(truncateToWidth(help, width));
     return lines;
   }
 
   override invalidate(): void {
-    this.#list.invalidate();
+    this.#list?.invalidate();
     super.invalidate();
   }
 }
