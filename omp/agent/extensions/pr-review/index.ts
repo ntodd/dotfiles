@@ -451,23 +451,15 @@ async function submitReview(
 // Summary rendering
 // ============================================================================
 
-function renderSummary(message: CustomMessage<PrReviewState>, _options: { expanded: boolean }, theme: Theme) {
+function renderSummary(
+  message: CustomMessage<PrReviewState>,
+  _options: { expanded: boolean },
+  _theme: Theme,
+) {
   const raw = (message.details ?? null) as Partial<PrReviewState> | null;
   const state = raw ? hydrateState(raw) : null;
   if (!state) return new Text("", 1, 0);
-  const lines: string[] = [theme.fg("accent", `PR Review — #${state.pr} ${state.title}`.trimEnd())];
-  if (state.verdict) lines.push(theme.fg("muted", `Verdict: ${state.verdict}`));
-  for (const line of state.summary.split("\n")) lines.push(line);
-  lines.push("");
-  for (const line of walkthroughText(state).split("\n")) lines.push(line);
-  lines.push("");
-  for (const line of qualityGateText(state).split("\n")) lines.push(line);
-  const counts: Record<string, number> = {};
-  for (const finding of state.findings) counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
-  const parts = Object.entries(counts).map(([severity, count]) => `${count} ${severity}`);
-  if (parts.length > 0) lines.push("", theme.fg("muted", `${state.findings.length} finding(s): ${parts.join(", ")}`));
-  lines.push("", theme.fg("dim", "Run /pr-view for the full review or /pr-issues to discuss and submit."));
-  return new Markdown(lines.join("\n"), 1, 0, getMarkdownTheme());
+  return new Markdown(reviewPresentationText(state, "original"), 1, 0, getMarkdownTheme());
 }
 
 async function runReviewViewer(

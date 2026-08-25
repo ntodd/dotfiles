@@ -488,6 +488,22 @@ describe("review presentation views", () => {
     const text = reviewPresentationText(state, "ste", stePresentation);
 
     assert.match(text, /The change keeps the review state/);
+    assert.match(
+      text,
+      /STE-style reading view[\s\S]*Summary:\n- The change keeps the review state\.\n- One reload problem remains\./,
+    );
+    assert.match(
+      text,
+      /Problem and reachability:\n- A branch reload can remove the review decisions\./,
+    );
+    assert.match(
+      text,
+      /Code map:\n- `src\/review\.ts:12-24` `reloadReview`\n  - This function gets the recorded review state\./,
+    );
+    assert.match(
+      text,
+      /Issue:\n- The review decisions disappear after a branch reload\./,
+    );
     assert.match(text, /This function gets the recorded review state/);
     assert.match(text, /src\/review\.ts:18/);
     assert.match(text, /`reloadReview`/);

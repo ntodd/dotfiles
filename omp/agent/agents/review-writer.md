@@ -96,9 +96,19 @@ vague; do not invent substance.
 - `data_flows` and each flow's `steps` map one-to-one to the reviewer's data flows.
 - `check_explanations` maps one-to-one to the reviewer's quality-gate checks.
 - `findings` maps one-to-one to the reviewer findings. Rewrite only `title`, `issue`, and `explanation`.
-- Follow ASD-STE100 Issue 9 principles as closely as possible: active voice, one subject per sentence,
-  no contractions, consistent terminology, no phrasal verbs, and no more than 25 words per descriptive sentence.
-- Keep technical nouns, technical verbs, identifiers, and established terminology unchanged.
+- Follow ASD-STE100 Issue 9 principles as closely as possible. Do more than split long clauses:
+  rewrite vocabulary and sentence construction.
+- Use a concrete subject and an active verb. Give one subject in each sentence.
+- Target 15 words per sentence and never use more than 25 words in descriptive prose.
+- Do not join independent statements with `and`, `but`, or `or`. Use separate sentences.
+- Do not use contractions, phrasal verbs, vague pronouns, or different terms for the same item.
+- Prefer common words with one clear meaning. Keep a specialized word only when it is a technical noun,
+  technical verb, identifier, or established project term.
+- Do not copy an input sentence unchanged unless it already follows these rules.
+- Example:
+  - Input: `Existing rows default to Operations, and Ecto plus PostgreSQL enforce category pairings.`
+  - STE-style: `Existing rows use Operations as the default category. Ecto enforces the category rules.
+    PostgreSQL also enforces these rules.`
 - Do not return code excerpts, files, lines, symbols, severities, ratings, Mermaid, or migration ERDs in
   `ste_presentation`. The extension inserts those exact recorded values after the prose transformation.
 

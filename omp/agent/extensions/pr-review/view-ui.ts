@@ -69,9 +69,13 @@ export class ReviewViewer {
       this.#offset = clamp(this.#offset - 1, 0, maxOffset);
     } else if (matchesKey(data, "down") || data === "j") {
       this.#offset = clamp(this.#offset + 1, 0, maxOffset);
-    } else if (matchesKey(data, "pageUp")) {
+    } else if (matchesKey(data, "pageUp") || data === "b") {
       this.#offset = clamp(this.#offset - pageSize, 0, maxOffset);
-    } else if (matchesKey(data, "pageDown")) {
+    } else if (
+      matchesKey(data, "pageDown") ||
+      matchesKey(data, "space") ||
+      matchesKey(data, "enter")
+    ) {
       this.#offset = clamp(this.#offset + pageSize, 0, maxOffset);
     } else if (matchesKey(data, "home") || data === "g") {
       this.#offset = 0;
@@ -87,7 +91,7 @@ export class ReviewViewer {
     const innerWidth = Math.max(20, width - 2);
     const rendered = this.#markdown.render(innerWidth);
     this.#lineCount = rendered.length;
-    this.#contentHeight = Math.max(5, Math.min(30, this.#tui.terminal.rows - 7));
+    this.#contentHeight = Math.max(5, this.#tui.terminal.rows - 8);
     const maxOffset = Math.max(0, this.#lineCount - this.#contentHeight);
     this.#offset = clamp(this.#offset, 0, maxOffset);
 
@@ -101,14 +105,26 @@ export class ReviewViewer {
         : this.#theme.fg("muted", " 2 STE-style ");
     const start = this.#lineCount === 0 ? 0 : this.#offset + 1;
     const end = Math.min(this.#lineCount, this.#offset + this.#contentHeight);
-    const position = `${start}-${end}/${this.#lineCount}`;
+    const linesAbove = this.#offset;
+    const linesBelow = Math.max(0, this.#lineCount - end);
+    const progress =
+      linesBelow > 0
+        ? this.#theme.fg(
+            "warning",
+            `Showing ${start}-${end} of ${this.#lineCount} · ↓ ${linesBelow} more lines — Space/PgDn/↓ to continue`,
+          )
+        : this.#theme.fg(
+            "success",
+            `${linesAbove > 0 ? `↑ ${linesAbove} lines above · ` : ""}End of review`,
+          );
     const help = this.#theme.fg(
       "muted",
-      `tab/t/←/→: format  ↑/↓/pgup/pgdn: scroll  home/end: jump  esc/q: close  ${position}`,
+      "tab/t/←/→: format  ↑/↓/j/k: line  space/enter/pgup/pgdn: page  home/end: jump  esc/q: close",
     );
 
     return [
       truncateToWidth(`${original}  ${ste}`, width),
+      truncateToWidth(progress, width),
       "",
       ...rendered
         .slice(this.#offset, this.#offset + this.#contentHeight)

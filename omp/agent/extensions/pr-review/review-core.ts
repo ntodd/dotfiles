@@ -602,56 +602,91 @@ export function parseSteReviewPresentation(text: string, state: PrReviewState): 
   };
 }
 
+const STE_SENTENCE_SEGMENTER = new Intl.Segmenter("en", { granularity: "sentence" });
+
+function steSentences(text: string, fallback = "Not established"): string[] {
+  const source = text.trim() || fallback;
+  const sentences: string[] = [];
+  for (const { segment } of STE_SENTENCE_SEGMENTER.segment(source)) {
+    const sentence = segment.trim().replace(/\s+/g, " ");
+    if (sentence) sentences.push(sentence);
+  }
+  return sentences.length > 0 ? sentences : [fallback];
+}
+
+function appendSteSentences(
+  lines: string[],
+  label: string,
+  text: string,
+  indent = "",
+): void {
+  lines.push(`${indent}${label}:`);
+  for (const sentence of steSentences(text)) lines.push(`${indent}- ${sentence}`);
+}
+
 function steWalkthroughText(state: PrReviewState, ste: SteReviewPresentation): string {
-  const lines = [
-    "PR walkthrough:",
-    `- Problem and reachability: ${ste.walkthrough.problem || "Not established"}`,
-    `- Actual behavior change: ${ste.walkthrough.behavior || "Not established"}`,
-  ];
+  const lines = ["PR walkthrough:", ""];
+  appendSteSentences(lines, "Problem and reachability", ste.walkthrough.problem);
+  lines.push("");
+  appendSteSentences(lines, "Actual behavior change", ste.walkthrough.behavior);
 
   if (state.walkthrough.codeMap.length > 0) {
-    lines.push("- Code map:");
+    lines.push("", "Code map:");
     for (const [index, entry] of state.walkthrough.codeMap.entries()) {
       const location = entry.lines ? `${entry.file}:${entry.lines}` : entry.file;
       const symbol = entry.symbol ? ` \`${entry.symbol}\`` : "";
-      lines.push(`  - \`${location}\`${symbol} — ${ste.walkthrough.codeMapRoles[index]}`);
+      lines.push(`- \`${location}\`${symbol}`);
+      for (const sentence of steSentences(ste.walkthrough.codeMapRoles[index]!)) {
+        lines.push(`  - ${sentence}`);
+      }
+    }
+  }
+
+  if (ste.walkthrough.dataFlows.length > 0) {
+    lines.push("", "Data flows:");
+    for (const flow of ste.walkthrough.dataFlows) {
+      lines.push(`- ${flow.name}`);
+      for (const [index, step] of flow.steps.entries()) {
+        lines.push(`  ${index + 1}. ${step}`);
+      }
     }
   }
 
   if (state.walkthrough.mermaid) {
     lines.push(
-      "- Code and data-flow diagram:",
+      "",
+      "Code and data-flow diagram:",
       "```mermaid",
       state.walkthrough.mermaid.trim(),
       "```",
     );
-  } else if (ste.walkthrough.dataFlows.length > 0) {
-    lines.push("- Data flows:");
-    for (const flow of ste.walkthrough.dataFlows) {
-      lines.push(`  - ${flow.name}: ${flow.steps.join(" → ")}`);
-    }
   }
 
   if (state.walkthrough.migrationErd) {
     lines.push(
-      "- Database ERD:",
+      "",
+      "Database ERD:",
       "```mermaid",
       state.walkthrough.migrationErd.trim(),
       "```",
     );
   }
 
-  lines.push(`- Blast radius: ${ste.walkthrough.blastRadius || "Not established"}`);
+  lines.push("");
+  appendSteSentences(lines, "Blast radius", ste.walkthrough.blastRadius);
   return lines.join("\n");
 }
 
 function steQualityGateText(state: PrReviewState, ste: SteReviewPresentation): string {
   const verdict = state.qualityGate.verdict ? state.qualityGate.verdict.toUpperCase() : "UNKNOWN";
-  const lines = [`Senior-engineering gate: ${verdict}`];
-  if (ste.qualityGate.rationale) lines.push(`- ${ste.qualityGate.rationale}`);
+  const lines = [`Senior-engineering gate: ${verdict}`, ""];
+  appendSteSentences(lines, "Rationale", ste.qualityGate.rationale);
+  if (state.qualityGate.checks.length > 0) lines.push("", "Checks:");
   for (const [index, check] of state.qualityGate.checks.entries()) {
-    const explanation = ste.qualityGate.checkExplanations[index];
-    lines.push(`- ${check.name.replaceAll("_", " ")} [${check.rating.toUpperCase()}]: ${explanation}`);
+    lines.push(`- ${check.name.replaceAll("_", " ")} [${check.rating.toUpperCase()}]`);
+    for (const sentence of steSentences(ste.qualityGate.checkExplanations[index]!)) {
+      lines.push(`  - ${sentence}`);
+    }
   }
   return lines.join("\n");
 }
@@ -661,14 +696,14 @@ function steFindingContextText(
   presentation: SteFindingPresentation,
 ): string {
   const location = finding.line ? `${finding.file}:${finding.line}` : finding.file;
-  const lines = [
-    `[${finding.severity}] ${presentation.title}`,
-    `File: ${location}`,
-    `Issue: ${presentation.issue}`,
-  ];
-  if (presentation.explanation) lines.push(`Why this occurs: ${presentation.explanation}`);
+  const lines = [`[${finding.severity}] ${presentation.title}`, `File: ${location}`, ""];
+  appendSteSentences(lines, "Issue", presentation.issue);
+  if (presentation.explanation) {
+    lines.push("");
+    appendSteSentences(lines, "Why this occurs", presentation.explanation);
+  }
   if (finding.codeExcerpt) {
-    lines.push("Relevant code from the PR head:", ...fencedCodeLines(finding.codeExcerpt));
+    lines.push("", "Relevant code from the PR head:", ...fencedCodeLines(finding.codeExcerpt));
   }
   return lines.join("\n");
 }
@@ -684,13 +719,13 @@ export function reviewPresentationText(
   const lines = [
     `PR ${state.repo}#${state.pr}: ${state.title}`,
     "",
-    ste.summary,
+    "STE-style reading view",
     "",
-    steWalkthroughText(state, ste),
-    "",
-    steQualityGateText(state, ste),
+    "Summary:",
+    ...steSentences(ste.summary).map(sentence => `- ${sentence}`),
   ];
   if (state.verdict) lines.push("", `Verdict: ${state.verdict}`);
+  lines.push("", steWalkthroughText(state, ste), "", steQualityGateText(state, ste));
   if (state.findings.length > 0) {
     lines.push("", "Findings:");
     for (const [index, finding] of state.findings.entries()) {
