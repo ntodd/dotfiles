@@ -3,7 +3,7 @@ name: issue-digger
 description: Investigates a single PR review finding — confirms or refutes it, finds the root cause, and proposes a concrete fix.
 tools: read, grep, glob, bash, lsp, web_search
 spawns: false
-model: "@slow"
+model: "@reviewer_fast"
 read-summarize: false
 output:
   properties:

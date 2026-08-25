@@ -3,7 +3,7 @@ name: pr-reviewer
 description: Read-only PR review that produces a summary and structured findings. Use when a PR needs reviewing against the team's review instructions.
 tools: read, grep, glob, bash, lsp, web_search
 spawns: false
-model: "@slow"
+model: "@reviewer"
 read-summarize: false
 output:
   properties:

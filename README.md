@@ -30,6 +30,12 @@ reviewer-side workflow. `/pr-resolve`, `/pr-feedback`, and `/pr-resolve-back`
 provide an author-side queue for triaging feedback, fixing and verifying it,
 previewing replies, and resolving evidence-backed threads.
 
+`script/setup` also installs the versioned OMP model roles. `reviewer` routes
+thorough review agents to Sol. `reviewer_fast` routes `/pr-review <n> fast` and
+`issue-digger` to Luna. `reviewer_adversarial` and `reviewer_adversarial_fast`
+provide independent Sol and Luna lanes for adversarial review passes. Change a
+role in `omp/agent/config.yml` to move all agents in that tier together.
+
 The workflows require Oh My Pi and an authenticated GitHub CLI (`gh`) on the
 target machine.
 

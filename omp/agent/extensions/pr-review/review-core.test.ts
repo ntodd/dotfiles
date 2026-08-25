@@ -593,10 +593,19 @@ describe("PR reviewer agent variants", () => {
   it("keeps the fast and standard review contracts in lockstep", () => {
     const standard = readFileSync(new URL("../../agents/pr-reviewer.md", import.meta.url), "utf8");
     const fast = readFileSync(new URL("../../agents/pr-reviewer-fast.md", import.meta.url), "utf8");
+    const general = readFileSync(new URL("../../agents/reviewer.md", import.meta.url), "utf8");
+    const issueDigger = readFileSync(new URL("../../agents/issue-digger.md", import.meta.url), "utf8");
+    const config = readFileSync(new URL("../../config.yml", import.meta.url), "utf8");
 
     assert.equal(normalizedReviewerAgent(fast), normalizedReviewerAgent(standard));
-    assert.match(fast, /^model: "@smol"$/m);
-    assert.match(standard, /^model: "@slow"$/m);
+    assert.match(fast, /^model: "@reviewer_fast"$/m);
+    assert.match(standard, /^model: "@reviewer"$/m);
+    assert.match(general, /^model: "@reviewer"$/m);
+    assert.match(issueDigger, /^model: "@reviewer_fast"$/m);
+    assert.match(config, /^  reviewer: openai-codex\/gpt-5\.6-sol:xhigh$/m);
+    assert.match(config, /^  reviewer_fast: openai-codex\/gpt-5\.6-luna:max$/m);
+    assert.match(config, /^  reviewer_adversarial: openai-codex\/gpt-5\.6-sol:xhigh$/m);
+    assert.match(config, /^  reviewer_adversarial_fast: openai-codex\/gpt-5\.6-luna:max$/m);
   });
 });
 

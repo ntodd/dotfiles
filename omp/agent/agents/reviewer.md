@@ -3,7 +3,7 @@ name: reviewer
 description: "Code review specialist for quality/security analysis"
 tools: read, grep, glob, bash, lsp, web_search, ast_grep
 spawns: scout
-model: "@slow"
+model: "@reviewer"
 output:
   properties:
     overall_correctness:

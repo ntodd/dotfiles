@@ -3,7 +3,7 @@ name: pr-reviewer-fast
 description: Fast read-only PR review with the same evidence and output contract as pr-reviewer.
 tools: read, grep, glob, bash, lsp, web_search
 spawns: false
-model: "@smol"
+model: "@reviewer_fast"
 read-summarize: false
 output:
   properties:
