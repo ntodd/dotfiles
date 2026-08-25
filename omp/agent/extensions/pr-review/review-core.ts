@@ -149,6 +149,26 @@ export function emptyState(): PrReviewState {
   };
 }
 
+export type ReviewRunMode = "standard" | "fast";
+
+export interface PrReviewCommand {
+  pr: string;
+  mode: ReviewRunMode;
+}
+
+export function parsePrReviewArgs(args: string): PrReviewCommand {
+  const tokens = args.trim() ? args.trim().split(/\s+/) : [];
+  const fast = tokens.at(-1)?.toLowerCase() === "fast";
+  if (fast) tokens.pop();
+  if (tokens.length > 1 || tokens.some(token => token.toLowerCase() === "fast")) {
+    throw new Error("Usage: /pr-review [n] [fast]");
+  }
+  return {
+    pr: tokens[0] ?? "head",
+    mode: fast ? "fast" : "standard",
+  };
+}
+
 type ReviewSessionEntry = {
   type?: string;
   customType?: string;

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   allowedReviewEvents,
@@ -10,6 +11,7 @@ import {
   normalizeFindings,
   normalizeWalkthrough,
   parseSteReviewPresentation,
+  parsePrReviewArgs,
   reviewPresentationText,
   reviewProseForSimplification,
   reviewSubmissionError,
@@ -559,6 +561,42 @@ describe("patchContainsNewLine", () => {
   it("does not count removed or no-newline markers as new-file lines", () => {
     assert.equal(patchContainsNewLine(patch, 8), false);
     assert.equal(patchContainsNewLine(patch, 13), false);
+  });
+});
+
+describe("parsePrReviewArgs", () => {
+  it("uses the standard reviewer by default", () => {
+    assert.deepEqual(parsePrReviewArgs(""), { pr: "head", mode: "standard" });
+    assert.deepEqual(parsePrReviewArgs("1234"), { pr: "1234", mode: "standard" });
+  });
+
+  it("accepts fast after a PR number or by itself", () => {
+    assert.deepEqual(parsePrReviewArgs("1234 fast"), { pr: "1234", mode: "fast" });
+    assert.deepEqual(parsePrReviewArgs("fast"), { pr: "head", mode: "fast" });
+  });
+
+  it("rejects unknown or misplaced options", () => {
+    assert.throws(() => parsePrReviewArgs("fast 1234"), /Usage/);
+    assert.throws(() => parsePrReviewArgs("1234 quick"), /Usage/);
+  });
+});
+
+describe("PR reviewer agent variants", () => {
+  function normalizedReviewerAgent(source: string): string {
+    const lines = source.trimEnd().split("\n");
+    lines[1] = "name: <reviewer>";
+    lines[2] = "description: <reviewer>";
+    lines[5] = 'model: "<reviewer>"';
+    return lines.join("\n");
+  }
+
+  it("keeps the fast and standard review contracts in lockstep", () => {
+    const standard = readFileSync(new URL("../../agents/pr-reviewer.md", import.meta.url), "utf8");
+    const fast = readFileSync(new URL("../../agents/pr-reviewer-fast.md", import.meta.url), "utf8");
+
+    assert.equal(normalizedReviewerAgent(fast), normalizedReviewerAgent(standard));
+    assert.match(fast, /^model: "@smol"$/m);
+    assert.match(standard, /^model: "@slow"$/m);
   });
 });
 

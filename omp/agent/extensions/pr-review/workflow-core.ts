@@ -10,12 +10,15 @@ export type ReviewWorkflowStage =
   | "completed"
   | "failed";
 
+export type ReviewerAgentName = "pr-reviewer" | "pr-reviewer-fast";
+
 export interface ReviewWorkflowState {
   repo: string;
   pr: number;
   title: string;
   stage: ReviewWorkflowStage;
   startedAt: number;
+  reviewerAgent?: ReviewerAgentName;
   findingCount?: number;
   reviewerOutputDigest?: string;
   reviewerRecordDigest?: string;
@@ -75,6 +78,16 @@ type ReviewTask = {
 const TERMINAL_STAGE: Partial<Record<ReviewWorkflowStage, true>> = { completed: true, failed: true };
 const SEVERITY_ORDER = ["blocker", "critical", "major", "minor", "nit", "style", "praise"];
 const SAFE_AGENT_ID = /^[A-Za-z0-9_-]+$/;
+
+function reviewerAgentFor(workflow: ReviewWorkflowState): ReviewerAgentName {
+  return workflow.reviewerAgent ?? "pr-reviewer";
+}
+
+function runningAgentFor(workflow: ReviewWorkflowState): ReviewerAgentName | "review-writer" | null {
+  if (workflow.stage === "reviewer_running") return reviewerAgentFor(workflow);
+  if (workflow.stage === "writer_running") return "review-writer";
+  return null;
+}
 
 type WorkflowSessionEntry = {
   type?: string;
@@ -202,7 +215,7 @@ function batchedAsyncFullOutputEvidence(details: unknown, workflow: ReviewWorkfl
   const errorText = "errorText" in match.job ? match.job.errorText : undefined;
   if (typeof resultText === "string" || typeof errorText === "string") return "";
   const status = "status" in match.job && typeof match.job.status === "string" ? match.job.status : "completed";
-  const agent = workflow.stage === "reviewer_running" ? "pr-reviewer" : "review-writer";
+  const agent = runningAgentFor(workflow) ?? "review-writer";
   if (status !== "completed") {
     return `<task-result id="${workflow.activeAgentId}" agent="${agent}" status="${status}"></task-result>`;
   }
@@ -301,13 +314,18 @@ function writerContract(output: string): string | null {
   }
 }
 
-export function createReviewWorkflow(meta: { repo: string; pr: number; title: string }, now = Date.now()): ReviewWorkflowState {
+export function createReviewWorkflow(
+  meta: { repo: string; pr: number; title: string },
+  now = Date.now(),
+  reviewerAgent: ReviewerAgentName = "pr-reviewer",
+): ReviewWorkflowState {
   return {
     repo: meta.repo,
     pr: meta.pr,
     title: meta.title,
     stage: "awaiting_reviewer",
     startedAt: now,
+    reviewerAgent,
   };
 }
 
@@ -315,11 +333,13 @@ export function reviewWorkflowActive(workflow: ReviewWorkflowState): boolean {
   return TERMINAL_STAGE[workflow.stage] !== true;
 }
 
-function expectedTask(stage: ReviewWorkflowStage): { name: string; agent: string; next: ReviewWorkflowStage } | null {
-  if (stage === "awaiting_reviewer") {
-    return { name: "PrReviewer", agent: "pr-reviewer", next: "reviewer_running" };
+function expectedTask(
+  workflow: ReviewWorkflowState,
+): { name: string; agent: string; next: ReviewWorkflowStage } | null {
+  if (workflow.stage === "awaiting_reviewer") {
+    return { name: "PrReviewer", agent: reviewerAgentFor(workflow), next: "reviewer_running" };
   }
-  if (stage === "awaiting_writer") {
+  if (workflow.stage === "awaiting_writer") {
     return { name: "ReviewWriter", agent: "review-writer", next: "writer_running" };
   }
   return null;
@@ -388,7 +408,7 @@ export function transitionForWorkflowToolCall(
   if (!reviewWorkflowActive(workflow)) return { ok: true, workflow };
 
   if (toolName === "task") {
-    const expected = expectedTask(workflow.stage);
+    const expected = expectedTask(workflow);
     if (!expected) {
       return {
         ok: false,
@@ -444,7 +464,8 @@ export function bindWorkflowTaskLaunch(
     return workflow;
   }
 
-  const expectedAgent = workflow.stage === "reviewer_running" ? "pr-reviewer" : "review-writer";
+  const expectedAgent = runningAgentFor(workflow);
+  if (!expectedAgent) return workflow;
   if (!details || typeof details !== "object") {
     return {
       ...workflow,
@@ -577,7 +598,7 @@ export function advanceWorkflowFromFullOutput(workflow: ReviewWorkflowState, out
       return {
         ...workflow,
         stage: "failed",
-        failure: "pr-reviewer returned an invalid structured review payload.",
+        failure: `${reviewerAgentFor(workflow)} returned an invalid structured review payload.`,
       };
     }
     return {
@@ -616,12 +637,7 @@ export function advanceWorkflowFromFullOutput(workflow: ReviewWorkflowState, out
 }
 
 export function advanceWorkflowFromEvidence(workflow: ReviewWorkflowState, text: string): ReviewWorkflowState {
-  const expectedAgent =
-    workflow.stage === "reviewer_running"
-      ? "pr-reviewer"
-      : workflow.stage === "writer_running"
-        ? "review-writer"
-        : null;
+  const expectedAgent = runningAgentFor(workflow);
   if (!expectedAgent || !workflow.activeAgentId) return workflow;
 
   const result = taskResult(text, expectedAgent, workflow.activeAgentId);
@@ -655,7 +671,7 @@ export function failRunningWorkflow(
 ): ReviewWorkflowState {
   if (workflow.stage !== "reviewer_running" && workflow.stage !== "writer_running") return workflow;
   if (toolCallId && workflow.activeTaskCallId !== toolCallId) return workflow;
-  const agent = workflow.stage === "reviewer_running" ? "pr-reviewer" : "review-writer";
+  const agent = runningAgentFor(workflow) ?? "review-writer";
   return {
     ...workflow,
     stage: "failed",
@@ -670,11 +686,12 @@ export function workflowContinuationText(workflow: ReviewWorkflowState): string 
       `Read ${workflow.pendingOutputUri}:raw now, then continue with that exact payload.`
     );
   }
+  const reviewerAgent = reviewerAgentFor(workflow);
   const action =
     workflow.stage === "awaiting_reviewer"
-      ? "Call the required pr-reviewer task now."
+      ? `Call the required ${reviewerAgent} task now.`
       : workflow.stage === "reviewer_running"
-        ? "Wait for the pr-reviewer result; do not start the writer early."
+        ? `Wait for the ${reviewerAgent} result; do not start the writer early.`
         : workflow.stage === "awaiting_writer"
           ? "Call the required review-writer task with the reviewer output now."
           : workflow.stage === "writer_running"
@@ -710,8 +727,9 @@ export function workflowProgressLines(
   snapshot: AsyncJobSummary | null,
   now = Date.now(),
 ): string[] {
+  const mode = reviewerAgentFor(workflow) === "pr-reviewer-fast" ? " (fast)" : "";
   const lines = [
-    `PR review · ${workflow.repo}#${workflow.pr}`,
+    `PR review${mode} · ${workflow.repo}#${workflow.pr}`,
     `[${phaseState(workflow.stage, "reviewer")}] Reviewer  [${phaseState(workflow.stage, "writer")}] Writer  [${phaseState(workflow.stage, "record")}] Record`,
   ];
 

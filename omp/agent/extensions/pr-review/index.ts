@@ -1,8 +1,8 @@
 // pr-review extension — a custom PR-review workflow for OMP.
 //
 // Surface:
-//   /pr-review [n]   fetch a PR via `gh`, then prompt the session to review it
-//                    and persist the findings via the pr_review_record tool.
+//   /pr-review [n] [fast]  fetch a PR via `gh`, then review it with the thorough
+//                          reviewer or the configured `@smol` model in fast mode.
 //   pr_review_record  LLM-facing tool the review calls to store the summary,
 //                    verdict, and structured findings in the session.
 //   /pr-view         scrollable full-review viewer with Original and STE-style
@@ -43,6 +43,7 @@ import {
   normalizeFindings,
   normalizeWalkthrough,
   parseSteReviewPresentation,
+  parsePrReviewArgs,
   qualityGateText,
   patchContainsNewLine,
   reviewEventLabel,
@@ -50,6 +51,7 @@ import {
   reviewSubmissionError,
   severityRank,
   type PrReviewState,
+  type PrReviewCommand,
   type ReviewEvent,
   type ReviewPresentationMode,
   walkthroughText,
@@ -72,6 +74,7 @@ import {
   workflowProgressLines,
   workflowEvidenceAfter,
   type ReviewRecordDetails,
+  type ReviewerAgentName,
   type ReviewWorkflowState,
 } from "./workflow-core.ts";
 
@@ -1044,22 +1047,31 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("pr-review", {
-    description: "Start a PR review: /pr-review [n] (defaults to the current branch's PR)",
+    description: "Start a PR review: /pr-review [n] [fast] (defaults to the current branch's PR)",
     handler: async (args, ctx) => {
-      const pr = args.trim() || "head";
-      const meta = await fetchPrMeta(pi, ctx.cwd, pr);
-      if (!meta) {
-        ctx.ui.notify(`Could not resolve PR '${pr}' in this repo. Is there an open PR?`, "error");
+      let command: PrReviewCommand;
+      try {
+        command = parsePrReviewArgs(args);
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : "Usage: /pr-review [n] [fast]", "error");
         return;
       }
-      const workflow = createReviewWorkflow(meta);
+
+      const meta = await fetchPrMeta(pi, ctx.cwd, command.pr);
+      if (!meta) {
+        ctx.ui.notify(`Could not resolve PR '${command.pr}' in this repo. Is there an open PR?`, "error");
+        return;
+      }
+      const reviewerAgent: ReviewerAgentName =
+        command.mode === "fast" ? "pr-reviewer-fast" : "pr-reviewer";
+      const workflow = createReviewWorkflow(meta, Date.now(), reviewerAgent);
       pi.appendEntry(WORKFLOW_TYPE, workflow);
       refreshWorkflowProgress(ctx, workflow);
       const prompt =
-        `Review PR #${meta.pr} (${meta.title}) in ${meta.repo}.\n\n` +
+        `Review PR #${meta.pr} (${meta.title}) in ${meta.repo}${command.mode === "fast" ? " in fast mode" : ""}.\n\n` +
         `Orchestrate only; do not review or rewrite the code in this parent session. The extension enforces this sequence.\n` +
         `1. Call \`task\` once with one item whose name is \`PrReviewer\`, whose agent is exactly ` +
-        `\`pr-reviewer\`, and whose schemaMode is \`strict\`. Never omit or replace the agent with ` +
+        `\`${reviewerAgent}\`, and whose schemaMode is \`strict\`. Never omit or replace the agent with ` +
         `\`task\`, \`scout\`, or another generic agent. Ask it to review \`pr://${meta.repo}/${meta.pr}\` ` +
         `and \`pr://${meta.repo}/${meta.pr}/diff/all\` per its own instructions and return its structured output. ` +
         `If the custom agent is unavailable, stop with a clear error instead of substituting another agent.\n` +
@@ -1067,18 +1079,19 @@ export default function (pi: ExtensionAPI): void {
         `selector before continuing; only the full structured output satisfies the workflow.\n` +
         `2. After that result arrives, call \`task\` once with one item whose name is \`ReviewWriter\`, whose agent ` +
         `is exactly \`review-writer\`, and whose schemaMode is \`strict\`. In that task's \`task\` text, include the ` +
-        `entire pr-reviewer structured output verbatim between lines containing exactly ` +
+        `entire reviewer structured output verbatim between lines containing exactly ` +
         `\`--- PR_REVIEWER_RESULT_BEGIN ---\` and \`--- PR_REVIEWER_RESULT_END ---\`. Ask the writer only for its ` +
         `structured final summary, verdict, and STE-style presentation; never substitute a generic agent or ask it ` +
         `to research the code.\n` +
         `3. Call \`pr_review_record\` exactly once with repo=${JSON.stringify(meta.repo)}, pr=${meta.pr}, ` +
         `title=${JSON.stringify(meta.title)}, the review-writer summary, verdict, and \`ste_presentation\`, plus the ` +
-        `pr-reviewer walkthrough, quality_gate, and findings verbatim.\n` +
+        `reviewer walkthrough, quality_gate, and findings verbatim.\n` +
         `4. The extension opens the recorded review automatically. Do not restate or duplicate the review after ` +
         `\`pr_review_record\` returns. Tell the user that \`/pr-view\` reopens the viewer and \`/pr-issues\` opens ` +
         `the discussion and submission workflow.`;
       pi.sendUserMessage(prompt);
-      ctx.ui.notify(`Reviewing PR #${meta.pr} — ${meta.title}`, "info");
+      const mode = command.mode === "fast" ? " using the configured @smol model" : "";
+      ctx.ui.notify(`Reviewing PR #${meta.pr} — ${meta.title}${mode}`, "info");
     },
   });
 

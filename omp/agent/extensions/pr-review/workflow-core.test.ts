@@ -142,6 +142,39 @@ describe("review workflow enforcement", () => {
     assert.equal(writer.workflow.stage, "writer_running");
   });
 
+  it("pins fast reviews to the fast reviewer agent", () => {
+    const initial = createReviewWorkflow(reviewIdentity, 1_000, "pr-reviewer-fast");
+    assert.equal(initial.reviewerAgent, "pr-reviewer-fast");
+    assert.match(workflowProgressLines(initial, null)[0]!, /PR review \(fast\)/);
+
+    const standardReviewer = transitionForWorkflowToolCall(initial, "task", reviewerTask);
+    assert.equal(standardReviewer.ok, false);
+    assert.match(standardReviewer.reason ?? "", /agent=pr-reviewer-fast/);
+
+    const fastTask = {
+      tasks: [
+        {
+          name: "PrReviewer",
+          agent: "pr-reviewer-fast",
+          schemaMode: "strict",
+          task: "Review the PR quickly.",
+        },
+      ],
+    };
+    const reviewerQueued = transitionForWorkflowToolCall(initial, "task", fastTask).workflow;
+    const reviewerRunning = bindWorkflowTaskLaunch(
+      { ...reviewerQueued, activeTaskCallId: "fast-reviewer-call" },
+      "fast-reviewer-call",
+      {
+        progress: [{ id: "PrReviewer", agent: "pr-reviewer-fast", status: "running" }],
+        async: { state: "running", jobId: "fast-reviewer-job" },
+      },
+    );
+    const fastResult = reviewerResult.replace('agent="pr-reviewer"', 'agent="pr-reviewer-fast"');
+
+    assert.equal(advanceWorkflowFromEvidence(reviewerRunning, fastResult).stage, "awaiting_writer");
+  });
+
   it("records only the exact reviewer and writer outputs", () => {
     const initial = createReviewWorkflow(reviewIdentity, 1_000);
     const reviewerQueued = transitionForWorkflowToolCall(initial, "task", reviewerTask).workflow;
