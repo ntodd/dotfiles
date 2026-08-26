@@ -25,6 +25,7 @@
 #   DS4_CTX=131072 DS4_PORT=8001 ds4-start
 #   DS4_MODEL=ds4f-q2-q4 ds4-start         # higher quality, ~98 GB
 #   DS4_DSPARK=0 ds4-start                 # disable speculative decoding
+#   DS4_MTP_EXACT_SAMPLING=1 ds4-start     # exact sampling, not opportunistic
 #   DS4_DRY_RUN=1 ds4-start                # print the command, don't run it
 #
 set -e
@@ -32,7 +33,7 @@ set -e
 DRY_RUN=${DS4_DRY_RUN:-0}
 
 usage() {
-    sed -n '3,28p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '3,29p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 for arg in "$@"; do
@@ -48,9 +49,10 @@ done
 # Every setting the config file may set. Used to give the environment priority
 # over the file: remember what was already set, source the file, put it back.
 DS4_SETTINGS='DS4_ROOT DS4_MODEL DS4_CTX DS4_MAX_TOKENS DS4_HOST DS4_PORT
-DS4_DSPARK DS4_DSPARK_FILE DS4_DSPARK_CONFIDENCE DS4_KV_ROOT DS4_KV_DIR
-DS4_KV_DISK_MB DS4_KV_COLD_MAX_TOKENS DS4_WARM DS4_POWER DS4_BATCHED_SESSION
-DS4_CORS DS4_REBUILD DS4_MAKE_TARGET DS4_CANDIDATES'
+DS4_DSPARK DS4_DSPARK_FILE DS4_DSPARK_CONFIDENCE DS4_MTP_EXACT_SAMPLING
+DS4_KV_ROOT DS4_KV_DIR DS4_KV_DISK_MB DS4_KV_COLD_MAX_TOKENS DS4_WARM
+DS4_POWER DS4_BATCHED_SESSION DS4_CORS DS4_REBUILD DS4_MAKE_TARGET
+DS4_CANDIDATES'
 
 DS4_CONFIG=${DS4_CONFIG:-"${XDG_CONFIG_HOME:-$HOME/.config}/ds4/config"}
 if [ -r "$DS4_CONFIG" ]; then
@@ -209,21 +211,29 @@ DS4_PORT=${DS4_PORT:-8000}
 
 # DSpark speculative decoding (new with the 0731 release). The draft model
 # proposes up to five tokens and the main model verifies them, so predictable
-# continuations decode faster. It costs ~5.6 GiB of extra memory and is only
-# used for greedy decoding.
+# continuations decode faster. It costs ~5.6 GiB of extra memory.
 #
-# Measured with `make dspark-acceptance` on the 0731 q2 quant, M5 Max (tok/s,
-# baseline -> DSpark): c_add 43.3 -> 53.6, python_reverse 43.4 -> 46.1,
+# Measured with `make dspark-acceptance` on the 0731 q2 quant, M5 Max, greedy
+# (tok/s, baseline -> DSpark): c_add 43.3 -> 53.6, python_reverse 43.4 -> 46.1,
 # redis 43.3 -> 45.6, math 41.8 -> 40.3, hello 41.7 -> 38.5. Code gains,
 # short conversational replies lose a little. That is the right trade for a
 # coding agent, so it defaults on -- rerun that target if you want to recheck.
 #
-# Note on temperature: ds4-server has no --temp flag, so greedy decoding is the
-# client's call. Pi does not send a temperature, so requests default to
-# temperature=1 and ordinary prose/reasoning decodes normally. DSpark still
-# kicks in for DSML tool-call payloads, which the server always samples
-# greedily -- that is the bulk of an agent's file paths and edit bodies. Set
-# temperature=0 client-side to get it for every token.
+# Note on temperature: as of the August 2026 update DSpark is no longer limited
+# to greedy decoding. Above temperature 0 it runs "opportunistic" sampling:
+# tokens evaluated normally use the requested temperature/top-p/top-k/min-p,
+# the draft model proposes a temperature-zero suffix, and any draft token
+# matching the target's temperature-zero continuation is committed as-is.
+# Sampling resumes at the first mismatch, so output is more deterministic than
+# plain temperature sampling.
+#
+# That closes the gap this script used to describe. Pi sends no temperature, so
+# its requests default to temperature=1 and previously only the greedily
+# sampled DSML tool-call payloads went through DSpark. Now prose and reasoning
+# tokens speculate too. Same fixture at --temp 1 on the M5 Max (tok/s, baseline
+# -> opportunistic): c_add 43.7 -> 55.2, math 45.7 -> 49.8, python_reverse
+# 45.2 -> 47.6, redis 45.3 -> 47.5, hello 43.6 -> 38.6. The shape holds:
+# predictable code speeds up, short chat replies do not.
 #
 # The support GGUF is checkpoint-specific: it must only be paired with a 0731
 # Flash model. This script refuses to enable it against anything else.
@@ -231,9 +241,18 @@ DS4_DSPARK=${DS4_DSPARK:-1}
 DS4_DSPARK_FILE=${DS4_DSPARK_FILE:-"$ROOT/gguf/DeepSeek-V4-Flash-DSpark-support-0731.gguf"}
 
 # Confidence threshold for pruning unlikely DSpark suffixes. Empty uses the
-# backend default (0.6 on Metal, 0.7 on CUDA/ROCm). 0 forces fixed five-token
-# blocks (diagnostic).
+# backend default (0.6 on Metal, 0.7 on CUDA/ROCm, or 0.8 under exact sampling
+# below). 0 forces fixed five-token blocks (diagnostic).
 DS4_DSPARK_CONFIDENCE=${DS4_DSPARK_CONFIDENCE:-}
+
+# Set to 1 to trade the opportunistic speedup for sampling fidelity. Exact mode
+# stops committing target-matching greedy drafts directly: each proposal is
+# accepted with its target probability and rejections resample from what is
+# left, which reproduces the ordinary temperature distribution. Costs most of
+# the gain -- measured at --temp 1 on the M5 Max, c_add 55.2 -> 50.4, math
+# 49.8 -> 44.5, redis 47.5 -> 42.6. Leave it off for agent work, where the
+# determinism is a feature and the tokens/s are the point.
+DS4_MTP_EXACT_SAMPLING=${DS4_MTP_EXACT_SAMPLING:-0}
 
 # Disk KV cache. Critical for agent clients: Pi (like other agents) resends the
 # whole conversation each request, and the first prompt can be 25k+ tokens.
@@ -405,6 +424,7 @@ if [ "$DSPARK_ACTIVE" = "1" ]; then
     else
         set -- "$@" --dspark
     fi
+    [ "$DS4_MTP_EXACT_SAMPLING" = "1" ] && set -- "$@" --mtp-exact-sampling
 fi
 
 [ "$DS4_WARM" = "1" ] && set -- "$@" --warm-weights
@@ -419,7 +439,11 @@ echo "   listen: http://$DS4_HOST:$DS4_PORT  (OpenAI / Anthropic / Responses com
 echo "   ctx   : $DS4_CTX tokens"
 echo "   kvdisk: $DS4_KV_DIR (${DS4_KV_DISK_MB} MB)"
 if [ "$DSPARK_ACTIVE" = "1" ]; then
-    echo "   dspark: on (greedy decode and tool-call payloads)"
+    if [ "$DS4_MTP_EXACT_SAMPLING" = "1" ]; then
+        echo "   dspark: on (exact sampling, ordinary target distribution)"
+    else
+        echo "   dspark: on (opportunistic, all temperatures)"
+    fi
 else
     echo "   dspark: off"
 fi
