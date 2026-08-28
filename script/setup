@@ -163,6 +163,25 @@ install_claude_config() {
   link_file "$DOTFILES_ROOT/claude/hooks" "$HOME/.claude/hooks"
 }
 
+install_agents_config() {
+  info '🚀 Installing shared agent skills...'
+  local overwrite_all=false backup_all=false skip_all=false
+
+  mkdir -p "$HOME/.agents"
+  link_file "$DOTFILES_ROOT/agents/skills" "$HOME/.agents/skills"
+}
+
+install_codex_hooks() {
+  # ~/.codex/hooks.json is shared with other installers (moshi-hook, orca),
+  # so merge our entries into it instead of symlinking the whole file
+  if command -v node >/dev/null 2>&1; then
+    info '🚀 Merging Codex hooks...'
+    node "$DOTFILES_ROOT/codex/merge-impeccable-hooks.mjs" && success '✅ Codex impeccable hooks merged'
+  else
+    info '⏭️  Skipping Codex hooks (node not found)'
+  fi
+}
+
 install_omp_config() {
   info '🚀 Installing Oh My Pi configuration...'
   local overwrite_all=false backup_all=false skip_all=false
@@ -194,6 +213,8 @@ install_oh_my_zsh
 install_tmux_plugin_manager
 install_dotfiles
 install_claude_config
+install_agents_config
+install_codex_hooks
 install_omp_config
 
 echo ''
