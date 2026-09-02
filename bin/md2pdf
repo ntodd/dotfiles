@@ -5,6 +5,8 @@
 #     "weasyprint>=63",
 #     "markdown>=3.6",
 #     "pillow>=10",
+#     "pygments>=2.17",
+#     "pymdown-extensions>=10",
 # ]
 # ///
 """Render a markdown document to a styled PDF via WeasyPrint.
@@ -15,6 +17,10 @@ for options.
 macOS note: WeasyPrint dlopens Pango/Cairo at runtime. Install with
 `brew install pango`; this script then re-execs itself with
 `DYLD_FALLBACK_LIBRARY_PATH` pointing at Homebrew's lib dir.
+
+Code blocks: fenced code is syntax-highlighted with Pygments (Elixir, Python,
+JS, shell, SQL, ... anything Pygments knows). Use --code-theme to switch
+between the dark (default) and light schemes.
 
 Mermaid: ```mermaid fences are pre-rendered to SVG by shelling out to
 `mmdc` (mermaid-cli). Install with `brew install mermaid-cli` if your
@@ -65,9 +71,35 @@ def _ensure_macos_dyld_path() -> None:
 _ensure_macos_dyld_path()
 
 import markdown  # noqa: E402
+from pygments.formatters import HtmlFormatter  # noqa: E402
 from weasyprint import CSS, HTML  # noqa: E402
 
 PAGE_SIZES = ("Letter", "A4", "Legal")
+
+# Pygments style name plus the chrome colours that Pygments does not emit.
+CODE_THEMES = {
+    "dark": {
+        "pygments": "one-dark",
+        "bg": "#282c34",
+        "fg": "#abb2bf",
+        "border": "#3e4451",
+        "inline_bg": "#eef1f5",
+        "inline_fg": "#0a2540",
+    },
+    "light": {
+        "pygments": "default",
+        "bg": "#f6f8fa",
+        "fg": "#1f2328",
+        "border": "#d0d7de",
+        "inline_bg": "#eef1f5",
+        "inline_fg": "#0a2540",
+    },
+}
+
+CODE_FONT_STACK = (
+    '"Fira Code", "JetBrains Mono", "Cascadia Code", "SF Mono", "Menlo", '
+    '"Consolas", "DejaVu Sans Mono", monospace'
+)
 TITLE_ALIGNS = ("left", "center")
 TEXT_ALIGNS = ("left", "justify")
 
@@ -206,21 +238,53 @@ a {
     overflow-wrap: anywhere;
 }
 
+/* Inline and block code share the font stack; colours come from the
+   selected code theme (see build_code_css). */
+code, pre, kbd, samp {
+    font-family: __CODE_FONT_STACK__;
+    font-feature-settings: "calt" 1, "liga" 1;
+    hyphens: none;
+}
+
 /* Markdown commonly puts long paths and URLs in inline-code spans.  The
    browser default has no useful break points inside those tokens. */
 code {
+    font-size: 0.88em;
     white-space: normal;
-    hyphens: none;
     overflow-wrap: anywhere;
+    border-radius: 3pt;
+    padding: 0.05em 0.35em;
+}
+
+pre code {
+    font-size: inherit;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    background: none;
+    color: inherit;
+    padding: 0;
+    border-radius: 0;
 }
 
 /* Preserve code-block spacing while still wrapping lines wider than a page. */
-pre,
-pre code {
+pre {
+    font-size: 8.6pt;
+    line-height: 1.45;
+    margin: 0.8em 0 1em;
+    padding: 9pt 11pt;
+    border-radius: 5pt;
     max-width: 100%;
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    /* Prefer breaking at spaces; only split a token when it alone overflows. */
+    overflow-wrap: break-word;
+    tab-size: 4;
+    /* Long listings flow across pages; short ones stay together. */
+    orphans: 4;
+    widows: 4;
 }
+
+.highlight { margin: 0.8em 0 1em; }
+.highlight pre { margin: 0; }
 
 img,
 svg {
@@ -260,6 +324,29 @@ img.mermaid-diagram {
     margin: 0.9em auto;
     page-break-inside: avoid;
 }
+"""
+
+
+BASE_CSS = BASE_CSS.replace("__CODE_FONT_STACK__", CODE_FONT_STACK)
+
+
+def build_code_css(theme_name: str) -> str:
+    """Pygments token colours plus code-block chrome for the chosen theme."""
+    theme = CODE_THEMES[theme_name]
+    tokens = HtmlFormatter(style=theme["pygments"]).get_style_defs(".highlight")
+    return f"""
+pre {{
+    background-color: {theme["bg"]};
+    color: {theme["fg"]};
+    border: 1px solid {theme["border"]};
+}}
+code {{
+    background-color: {theme["inline_bg"]};
+    color: {theme["inline_fg"]};
+}}
+/* Pygments emits a background on .highlight; keep ours on <pre>. */
+.highlight {{ background: none !important; }}
+{tokens}
 """
 
 
@@ -384,13 +471,29 @@ def render(
     page_numbers: bool,
     title_align: str,
     text_align: str,
+    code_theme: str,
 ) -> int:
     md_text = _PAGEBREAK_RE.sub(_PAGEBREAK_HTML, md_text)
     with tempfile.TemporaryDirectory(prefix="md2pdf-") as tmpdir:
         md_text = _render_mermaid_blocks(md_text, Path(tmpdir))
         html_body = markdown.markdown(
             md_text,
-            extensions=["extra", "sane_lists", "smarty"],
+            # "extra" minus fenced_code, which superfences replaces (and
+            # which cannot see fences nested inside blockquotes or lists).
+            extensions=[
+                "abbr", "attr_list", "def_list", "footnotes", "md_in_html",
+                "tables", "sane_lists", "smarty",
+                "pymdownx.superfences", "codehilite",
+            ],
+            extension_configs={
+                "codehilite": {
+                    # Unlabelled fences render as plain text rather than a
+                    # (usually wrong) guessed language.
+                    "guess_lang": False,
+                    "css_class": "highlight",
+                    "noclasses": False,
+                },
+            },
             output_format="html",
         )
         html_doc = (
@@ -404,6 +507,7 @@ def render(
         css_text = (
             build_page_css(page_size, footer, page_numbers)
             + BASE_CSS
+            + build_code_css(code_theme)
             + build_alignment_css(title_align, text_align)
         )
         document = HTML(string=html_doc, base_url=str(input_path.parent)).render(
@@ -477,6 +581,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="left",
         help='Body text alignment. "left" is ragged-right; "justify" fills the line.',
     )
+    parser.add_argument(
+        "--code-theme",
+        choices=tuple(CODE_THEMES),
+        default="dark",
+        help="Colour scheme for fenced code blocks.",
+    )
     return parser.parse_args(argv)
 
 
@@ -510,6 +620,7 @@ def main(argv: list[str] | None = None) -> None:
             page_numbers=args.page_numbers,
             title_align=args.title_align,
             text_align=args.text_align,
+            code_theme=args.code_theme,
         )
         elapsed = time.perf_counter() - start
         size = _format_size(output_path.stat().st_size)
