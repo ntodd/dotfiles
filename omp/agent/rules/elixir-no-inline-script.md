@@ -1,7 +1,7 @@
 ---
 description: Never write raw inline `<script>` tags in HEEx — use a colocated JS hook script tag instead.
 globs: ["*.heex", "*.ex"]
-condition: '<script\b(?![^>]*:type\s*=\s*\{Phoenix\.LiveView\.ColocatedHook\})'
+condition: '<script\b(?![^>]*\bsrc\s*=)(?![^>]*:type\s*=\s*\{Phoenix\.LiveView\.Colocated(?:Hook|JS)\})'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
 ---
 

@@ -1,7 +1,7 @@
 ---
 description: Never capture a LiveView socket inside `assign_async`, `start_async`, or `stream_async`; extract required values first.
 globs: ["*.ex"]
-condition: '(?s)\b(?:assign_async|start_async|stream_async)\s*\(.{0,2000}?fn\s*->.{0,2000}?\bsocket(?:\.assigns)?\b'
+condition: '(?s)\b(?:assign_async|start_async|stream_async)\s*\((?:(?!\bend\b).){0,2000}?fn\s*->(?:(?!\bend\b).){0,2000}?\bsocket(?:\.assigns)?\b'
 scope: [tool:edit(*.ex), tool:write(*.ex)]
 ---
 

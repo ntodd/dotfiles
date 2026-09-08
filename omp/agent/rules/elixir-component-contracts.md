@@ -1,7 +1,7 @@
 ---
 description: Declare public function-component inputs with `attr/3` and `slot/3` for compile-time validation.
 globs: ["*.ex"]
-condition: '(?s)\bdef\s+(?!render\b)[a-z_]\w*\([^)]*\)\s+do\s*.{0,1000}?~H'
+condition: '(?s)\bdef\s+(?!render\b)[a-z_]\w*\([^)]*\bassigns\s*\)\s+do\s*(?:(?!\n\s*end\b).){0,1000}?~H'
 scope: [tool:edit(*.ex), tool:write(*.ex)]
 ---
 

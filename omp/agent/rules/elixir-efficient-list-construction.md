@@ -1,7 +1,7 @@
 ---
 description: Do not repeatedly append single items while constructing a list; map or prepend and reverse once.
 globs: ["*.ex", "*.exs"]
-condition: '\b[a-z_]\w*\s*\+\+\s*\[[^\[\],]+\]'
+condition: '\b[a-z_]\w*\s*\+\+\s*\[(?![a-z_]\w*:\s)[^\[\],]+\]'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
 ---
 

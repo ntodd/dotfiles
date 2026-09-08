@@ -1,7 +1,7 @@
 ---
 description: Do not spawn another Task inside a LiveView async callback; the LiveView API already owns the task lifecycle.
 globs: ["lib/**/*_web/**/*.ex"]
-condition: '(?s)\b(?:assign_async|start_async|stream_async)\s*\(.{0,2500}?fn\s*->.{0,2500}?\b(?:Task\.(?:async|start|start_link)|Task\.Supervisor\.(?:async|async_nolink|start_child))\s*\('
+condition: '(?s)\b(?:assign_async|start_async|stream_async)\s*\((?:(?!\bend\b).){0,2500}?fn\s*->(?:(?!\bend\b).){0,2500}?\b(?:Task\.(?:async|start|start_link)|Task\.Supervisor\.(?:async|async_nolink|start_child))\s*\('
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
 ---
 
