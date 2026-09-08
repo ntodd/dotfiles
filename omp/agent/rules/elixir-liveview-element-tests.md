@@ -3,6 +3,7 @@ description: Drive LiveView test interactions through `element/3` or `form/3` in
 globs: ["test/**/*.exs", "*_test.exs"]
 condition: '\brender_(?:click|change|submit|focus|blur|keydown|keyup|hook)\(\s*(?:view|live|lv)\s*,'
 scope: [tool:edit(test/**/*.exs), tool:write(test/**/*.exs), tool:edit(*_test.exs), tool:write(*_test.exs)]
+interruptMode: never
 ---
 
 Prefer DOM-driven LiveView tests:

@@ -3,6 +3,7 @@ description: Before writing a new flash message, grep for existing user-facing w
 globs: ["*.ex"]
 condition: '\bput_flash\('
 scope: [tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Before writing new flash copy, grep the context and web layer for existing user-facing wording for the same condition. If the condition is already worded somewhere, reuse that wording verbatim; two phrasings for one failure confuse users and fork the tests that assert on copy.

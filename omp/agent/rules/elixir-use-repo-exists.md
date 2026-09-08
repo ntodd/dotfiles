@@ -3,6 +3,7 @@ description: Use `Repo.exists?/2` when only existence matters instead of countin
 globs: ["lib/**/*.ex", "test/**/*.exs"]
 condition: '(?s)\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.aggregate\s*\(.{0,1000}?:count\b|\blength\s*\(\s*(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.all\s*\(|\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.one\s*\(.{0,1000}?\bcount\s*\('
 scope: [tool:edit(lib/**/*.ex), tool:write(lib/**/*.ex), tool:edit(test/**/*.exs), tool:write(test/**/*.exs)]
+interruptMode: never
 ---
 
 When the answer is only yes or no, call `Repo.exists?(query)` so the query communicates intent and the database can stop after the first match.

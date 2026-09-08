@@ -3,6 +3,7 @@ description: Bound potentially growing `Repo.all` queries with pagination, a lim
 globs: ["lib/**/*.ex"]
 condition: '\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.all\s*\(\s*[A-Z][A-Za-z0-9_.]*\s*\)'
 scope: [tool:edit(lib/**/*.ex), tool:write(lib/**/*.ex)]
+interruptMode: never
 ---
 
 A bare `Repo.all(Schema)` assumes the table will remain small forever. For user-facing or operationally growing data, add current-scope filters and an explicit limit, cursor/keyset pagination, or another bounded query. Use `Repo.stream/2` inside a transaction for offline incremental processing of a genuinely large result set.

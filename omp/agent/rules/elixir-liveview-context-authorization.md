@@ -1,7 +1,7 @@
 ---
 description: LiveViews authenticate at lifecycle boundaries but delegate resource authorization to scope-aware context functions.
 globs: ["lib/**/*.ex"]
-condition: '\bdef\s+(?:mount|handle_params|handle_event)\s*\('
+condition: '\b(?:current_user|current_scope)\b[^\n]*(?:==|!=)|\.(?:user_id|owner_id|author_id|account_id|org(?:anization)?_id|tenant_id)\s*(?:==|!=)|\bif\s+[^\n]*\b(?:admin\?|role\s*(?:==|in\b))'
 scope: [tool:edit(lib/**/*.ex), tool:write(lib/**/*.ex)]
 ---
 

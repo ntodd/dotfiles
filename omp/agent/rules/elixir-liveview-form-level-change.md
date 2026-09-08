@@ -3,6 +3,7 @@ description: Handle validation changes at the form level by default; use input-l
 globs: ["*.heex", "*.ex"]
 condition: '<(?:\.input|input|select|textarea)\b[^>]*\sphx-change\s*='
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Put the normal validation event on `<.form phx-change="validate">` so every change sends the complete form params and the context can rebuild one coherent changeset/form.

@@ -3,6 +3,7 @@ description: Isolate test files and logs with ExUnit-managed resources instead o
 globs: ["test/**/*.exs", "*_test.exs"]
 condition: 'System\.tmp_dir!?\s*\(|["'']/tmp/|Logger\.(?:configure|add_backend|remove_backend)\s*\('
 scope: [tool:edit(test/**/*.exs), tool:write(test/**/*.exs), tool:edit(*_test.exs), tool:write(*_test.exs)]
+interruptMode: never
 ---
 
 Use ExUnit's `@tag :tmp_dir` or `@tag tmp_dir: true` and consume the generated `tmp_dir` from test context. Do not write to a fixed `/tmp` path or another shared filename that parallel tests can overwrite. ExUnit removes managed temporary directories after the test.

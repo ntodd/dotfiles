@@ -3,6 +3,7 @@ description: Consider `optimistic_lock/3` for records edited concurrently instea
 globs: ["lib/**/*.ex"]
 condition: '\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.update!?\s*\('
 scope: [tool:edit(lib/**/*.ex), tool:write(lib/**/*.ex)]
+interruptMode: never
 ---
 
 When a record may be loaded, edited for a while, and updated concurrently by another user or process, decide whether last-write-wins is acceptable. If not, add a version column and apply `Ecto.Changeset.optimistic_lock/3` to update and delete changesets.

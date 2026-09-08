@@ -3,6 +3,7 @@ description: Back uniqueness, references, and other concurrent invariants with d
 globs: ["*.ex", "*.exs"]
 condition: '\bunsafe_validate_unique\s*\('
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 Application validations cannot guarantee invariants under concurrency. Add the corresponding database unique index, foreign key, check, or exclusion constraint, then map violations into changeset errors with `unique_constraint/3`, `foreign_key_constraint/3`, `check_constraint/3`, or the appropriate constraint function.

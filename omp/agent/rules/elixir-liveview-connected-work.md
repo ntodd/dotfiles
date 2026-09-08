@@ -3,6 +3,7 @@ description: In LiveView `mount/3`, guard subscriptions, timers, and process mes
 globs: ["lib/**/*_web/**/*.ex"]
 condition: '\b(?:[A-Z][A-Za-z0-9_.]*\.)?subscribe\s*\(|\b(?:Process\.send_after|:timer\.send_interval|:timer\.send_after)\s*\('
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
+interruptMode: never
 ---
 
 A root LiveView mounts once for the static HTTP render and again for the connected process. When stateful work occurs in `mount/3`, run it only for the connected mount:

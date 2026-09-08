@@ -3,6 +3,7 @@ description: Choose LiveView patch, navigate, or HTTP navigation according to li
 globs: ["*.heex", "*.ex"]
 condition: '<\.link\b[^>]*\s(?:href|navigate|patch)\s*=|\bpush_(?:navigate|patch)\s*\('
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Use the navigation primitive that matches the intended lifecycle:

@@ -3,6 +3,7 @@ description: Prefer operation-specific changeset functions in schemas over gener
 globs: ["*.ex"]
 condition: '(?m)\b(?:defp?\s+changeset|(?:[A-Z][A-Za-z0-9_.]*\.)?changeset|Ecto\.Changeset\.[a-z_]\w*)\s*\('
 scope: [tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 When a context exposes a domain operation, keep that operation's changeset in the schema and give it a domain-specific name. Prefer `Report.update_changeset(report, attrs)` for an update and `Report.approve_changeset(report)` for an approval over a generic `Report.changeset(...)` or a direct `Ecto.Changeset.*` pipeline assembled in the context.

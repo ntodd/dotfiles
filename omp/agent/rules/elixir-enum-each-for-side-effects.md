@@ -3,6 +3,7 @@ description: Use `Enum.each/2` for side effects; use `Enum.map/2` only when the 
 globs: ["*.ex", "*.exs"]
 condition: '(?s)\bEnum\.map\s*\((?:(?!\bend\b).){0,1000}?(?<!Map\.|Keyword\.|List\.|String\.|Enum\.|Tuple\.|Access\.|Kernel\.|Ecto\.Changeset\.|Changeset\.)\b(?:send|deliver|notify|insert|update|delete|write|broadcast|enqueue|perform)\w*[!?]?(?:\s*\(|/\d)'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 `Enum.map/2` communicates that each item is transformed and that the returned collection matters. If the callback exists only to send, persist, notify, log, write, or perform another side effect and the result is ignored, use `Enum.each/2`.

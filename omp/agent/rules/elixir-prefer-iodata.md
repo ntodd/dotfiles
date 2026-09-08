@@ -3,6 +3,7 @@ description: Prefer iodata over repeated binary concatenation when constructing 
 globs: ["*.ex", "*.exs"]
 condition: '\b(?:acc|output|buffer|body)\s*<>\s*'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 When incrementally building output for IO, sockets, hashing, encoding, or another API that accepts iodata, return nested binaries/byte lists instead of repeatedly allocating larger binaries with `<>`.

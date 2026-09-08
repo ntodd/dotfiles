@@ -3,6 +3,7 @@ description: Preload associations before callers or templates access them, and b
 globs: ["lib/**/*.ex"]
 condition: '\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.(?:all|all_by|one|one!|get|get!|get_by|get_by!)\s*\('
 scope: [tool:edit(lib/**/*.ex), tool:write(lib/**/*.ex)]
+interruptMode: never
 ---
 
 A context function must return data with every association its caller will access already loaded. Express the preload in the query or with `Repo.preload/2` inside the context; do not make templates, controllers, or LiveViews discover missing associations.

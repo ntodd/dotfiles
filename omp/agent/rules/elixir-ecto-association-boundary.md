@@ -3,6 +3,7 @@ description: Use Ecto association APIs according to trust boundaries and treat d
 globs: ["*.ex", "*.exs"]
 condition: '\b(?:cast_assoc|cast_embed|put_assoc|put_embed)\s*\(|\bon_replace:\s*:(?:delete|delete_if_exists|nilify|update)\b'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 Use `cast_assoc/3` and `cast_embed/3` when nested external params should be cast and validated with the parent. Use `put_assoc/4` and `put_embed/4` for trusted internal structs/data that replace the relationship as a whole. Use `Ecto.Multi` when the workflow needs explicit operations across records.

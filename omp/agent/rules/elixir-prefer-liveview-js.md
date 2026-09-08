@@ -3,6 +3,7 @@ description: Prefer `Phoenix.LiveView.JS` commands over a custom hook for simple
 globs: ["*.heex", "*.ex"]
 condition: 'phx-hook\s*=\s*(?:"[^.][^"]*"|\{[^}]+\})'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Before adding an external `phx-hook`, check whether `Phoenix.LiveView.JS` already expresses the behavior. Prefer `JS.show`, `hide`, `toggle`, class and attribute operations, transitions, focus helpers, `dispatch`, and composed `JS.push` commands for ordinary UI interactions. These commands are aware of LiveView DOM patches.

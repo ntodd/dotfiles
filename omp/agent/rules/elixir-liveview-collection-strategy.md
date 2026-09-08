@@ -1,8 +1,9 @@
 ---
 description: Use streams for large or incrementally changing LiveView collections; use keyed assigns for small retained collections.
 globs: ["*.heex", "*.ex"]
-condition: '\s:for=\{'
+condition: '<(?=[^>]*\s:for=\{)(?![^>]*@streams\.)[^>]+>'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Choose the collection representation from its behavior:

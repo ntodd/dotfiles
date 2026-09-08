@@ -3,6 +3,7 @@ description: Give LiveView submissions immediate latency feedback with `phx-disa
 globs: ["*.heex", "*.ex"]
 condition: '<(?:\.button|button)\b(?=[^>]*\stype\s*=\s*(?:"submit"|\{\s*:submit\s*\}))(?![^>]*\sphx-disable-with(?:\s|=|>))[^>]+>'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Every user-visible LiveView submission should acknowledge latency immediately. For a text-only submit button, use `phx-disable-with="Saving..."`. If the button contains icons or nested markup, style alternate content through the form's built-in `phx-submit-loading` class instead because `phx-disable-with` replaces `innerText`.

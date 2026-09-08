@@ -3,6 +3,7 @@ description: Sequence Ecto migrations to avoid long locks, table rewrites, and i
 globs: ["priv/repo/migrations/*.exs", "priv/*/migrations/*.exs"]
 condition: '\bcreate\s+(?:unique_)?index\s*\(|\badd\s+:[a-z_]\w*\s*,\s*references\s*\(|\b(?:modify|remove|rename)\s+(?::|table\s*\()|\b(?:add|modify)\s+:[a-z_]\w*\s*,[^\n]*(?:default|null)\s*:'
 scope: [tool:edit(priv/repo/migrations/*.exs), tool:write(priv/repo/migrations/*.exs), tool:edit(priv/*/migrations/*.exs), tool:write(priv/*/migrations/*.exs)]
+interruptMode: never
 ---
 
 Evaluate every index, reference, constraint, column removal/rename, default, and type change against the production adapter, table size, and rolling-deploy compatibility.

@@ -3,6 +3,7 @@ description: Express durable data invariants in migrations with nullability, con
 globs: ["priv/repo/migrations/*.exs", "priv/*/migrations/*.exs"]
 condition: '\b(?:create|alter)\s+table\s*\('
 scope: [tool:edit(priv/repo/migrations/*.exs), tool:write(priv/repo/migrations/*.exs), tool:edit(priv/*/migrations/*.exs), tool:write(priv/*/migrations/*.exs)]
+interruptMode: never
 ---
 
 If persisted data is required, use `null: false`; if a value has a database default, keep the Ecto schema default aligned. Add foreign keys and check/unique constraints for durable relationships and value invariants rather than relying only on changeset validation.

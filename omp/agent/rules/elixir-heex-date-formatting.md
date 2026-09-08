@@ -1,8 +1,9 @@
 ---
-description: Look for existing date helpers or local-time components before calling `Calendar.strftime` in HEEx.
+description: Look for existing date helpers or local-time components before formatting dates inline in HEEx.
 globs: ["*.heex", "*.ex"]
-condition: '(?m)(?:\{|<%=?)[^\n]*\bCalendar\.strftime\('
+condition: '(?m)(?:\{|<%=?)[^\n]*\b(?:Calendar\.strftime|Timex\.format!?|(?:Date|DateTime|NaiveDateTime|Time)\.to_string)\('
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Before rendering a date or time with `Calendar.strftime/3` in a template, LiveView, or function component, search the project for an existing formatting path. Look for function components such as `<.local_time>`, `<.datetime>`, or `<.date>`, formatting helpers in the web module's core components or a dedicated helpers module, and existing `Calendar.strftime` call sites that reveal the project's formats and time zone handling. Reuse what exists so formats, locale, and time zone conversion stay consistent across the application.

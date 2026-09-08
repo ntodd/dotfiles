@@ -3,6 +3,7 @@ description: Use `action_fallback` to translate context errors consistently acro
 globs: ["lib/**/*_web/controllers/**/*_controller.ex"]
 condition: '\bdef\s+(?:create|update|delete)\s*\('
 scope: [tool:edit(lib/**/*_web/controllers/**/*_controller.ex), tool:write(lib/**/*_web/controllers/**/*_controller.ex)]
+interruptMode: never
 ---
 
 For a JSON API whose context functions return regular `{:ok, value}` / `{:error, reason}` tuples, register one `action_fallback` plug and let actions return unhandled error tuples from `with`.

@@ -9,6 +9,7 @@ scope:
     tool:edit(**/live/**/*.ex),
     tool:write(**/live/**/*.ex),
   ]
+interruptMode: never
 ---
 
 A private LiveView function that computes state or decisions from a schema struct — which step comes next, what is allowed, what a value becomes — is domain logic. Put it next to its siblings in the context or state module, where it is unit-testable without mounting a view, and call it from the LiveView.

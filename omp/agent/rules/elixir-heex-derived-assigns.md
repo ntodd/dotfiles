@@ -1,9 +1,10 @@
 ---
 description: Move template values read more than once, and per-render list transforms, into derived assigns.
 globs: ["*.heex", "*.ex"]
-condition: '(?s)((?:[A-Z]\w*\.)*[a-z_]\w*[?!]?\(@[a-z_]\w*[^()]*\)).*?\1|\bEnum\.(?:sort|sort_by|filter|reject|group_by|split_with|uniq|uniq_by|frequencies|flat_map|dedup)\(\s*@[a-z_]\w*'
+condition: '(?s)((?:[A-Z]\w*\.)*[a-z_]\w*[?!]?\(@[a-z_]\w*[^()]*\))(?:(?!\n\s*end\b).)*?\1|(?:\{|<%=?|<-|\|>)\s*Enum\.(?:sort|sort_by|filter|reject|group_by|split_with|uniq|uniq_by|frequencies|flat_map|dedup)\(\s*@[a-z_]\w*'
 scope:
   [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 When a template reads the same derived value more than once — the same `Mod.fun(@assign)` or private-helper call appearing twice, or a list transform such as `Enum.sort_by(@items, ...)` running per render — compute it once in the LiveView and read an assign:

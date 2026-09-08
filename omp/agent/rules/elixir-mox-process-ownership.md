@@ -3,6 +3,7 @@ description: Keep Mox expectations process-owned; use allowances and explicit sy
 globs: ["test/**/*.exs", "*_test.exs"]
 condition: '\b(?:set_mox_global|set_mox_from_context|allow|verify!|verify_on_exit!)\s*\('
 scope: [tool:edit(test/**/*.exs), tool:write(test/**/*.exs), tool:edit(*_test.exs), tool:write(*_test.exs)]
+interruptMode: never
 ---
 
 Mox expectations belong to the process that defines them. Keep private mode and `setup :verify_on_exit!` by default so tests using the same mock can remain asynchronous.

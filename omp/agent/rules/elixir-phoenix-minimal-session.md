@@ -3,6 +3,7 @@ description: Keep Phoenix and LiveView sessions minimal: store an opaque session
 globs: ["lib/**/*_web/**/*.ex"]
 condition: '\bput_session\s*\('
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
+interruptMode: never
 ---
 
 A browser session should normally contain only a random, revocable session token or similarly minimal opaque identifier. Fetch the current user and construct the Phoenix 1.8 scope from authoritative server-side data.

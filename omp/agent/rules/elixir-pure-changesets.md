@@ -3,6 +3,7 @@ description: Keep schema changeset functions deterministic and free of database 
 globs: ["*.ex"]
 condition: '(?s)\bdef\s+\w*changeset\w*\([^)]*\)\s+do(?:(?!\n\s*end\b).){0,4000}\b(?:Req\.|(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.|[A-Z][A-Za-z0-9_.]*Mailer\.|deliver(?:_later|_now)?\s*\(|send_email\s*\(|Oban\.insert)'
 scope: [tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Schema changeset functions should deterministically cast, validate, transform, and annotate database constraints. Constructing the same changeset twice must not query a service, send anything, enqueue work, or otherwise change the world.

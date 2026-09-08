@@ -1,7 +1,9 @@
 ---
 description: On Ecto 3.14+, use `Repo.transact/2`; `Repo.transaction/2` is deprecated and has different return semantics.
 globs: ["*.ex", "*.exs"]
-condition: '\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.transaction\s*\('
+astCondition:
+  - "Repo.transaction($$$A)"
+  - "$R.transaction($$$A)"
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
 ---
 

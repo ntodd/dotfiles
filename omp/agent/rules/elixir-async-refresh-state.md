@@ -3,6 +3,7 @@ description: Choose explicit refresh semantics for repeated async loads; use `re
 globs: ["lib/**/*_web/**/*.ex"]
 condition: '(?s)\bdef\s+(?:handle_event|handle_params|handle_info)\b.{0,4000}?\bassign_async\s*\('
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
+interruptMode: never
 ---
 
 On a subsequent `assign_async` call, the prior successful result is preserved by default and takes precedence in `<.async_result>`. This gives stale-while-revalidate behavior, so the first-load `:loading` and `:failed` slots do not replace the existing result.

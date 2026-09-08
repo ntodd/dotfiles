@@ -3,6 +3,7 @@ description: Do not repeatedly append single items while constructing a list; ma
 globs: ["*.ex", "*.exs"]
 condition: '\b[a-z_]\w*\s*\+\+\s*\[(?![a-z_]\w*:\s)[^\[\],]+\]'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 Appending with `acc ++ [item]` traverses the entire accumulator on every iteration and can turn a linear operation into quadratic work.

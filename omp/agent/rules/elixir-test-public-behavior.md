@@ -3,6 +3,7 @@ description: Test observable public behavior and outcomes rather than private fu
 globs: ["test/**/*.exs", "*_test.exs"]
 condition: '(?m)^\s*(?:test|property)\s+"'
 scope: [tool:edit(test/**/*.exs), tool:write(*_test.exs), tool:edit(*_test.exs), tool:write(test/**/*.exs)]
+interruptMode: never
 ---
 
 Exercise the public API or real application surface and assert observable outcomes: returned domain values, persisted state, rendered elements, messages, events, and externally visible errors.

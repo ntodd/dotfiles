@@ -3,6 +3,7 @@ description: Phoenix 1.8 context functions that access scoped data must take the
 globs: ["lib/**/*.ex"]
 condition: '\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.(?:all|all_by|one|one!|get|get!|get_by|get_by!|exists\?|insert|insert!|update|update!|delete|delete!|insert_all|update_all|delete_all|preload|transact)\s*\('
 scope: [tool:edit(lib/**/*.ex), tool:write(lib/**/*.ex)]
+interruptMode: never
 ---
 
 Follow Phoenix 1.8's scope-first context API. Any public context function that reads, creates, updates, deletes, subscribes to, or broadcasts scoped resources must accept the authenticated scope as its first argument:

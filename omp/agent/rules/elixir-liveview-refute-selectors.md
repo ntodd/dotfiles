@@ -9,6 +9,7 @@ scope:
     tool:edit(*_test.exs),
     tool:write(*_test.exs),
   ]
+interruptMode: never
 ---
 
 A refuted selector passes vacuously when the template could never emit it. Before refuting absence, trace the template's id/class expression and confirm the string is one the template can produce from some input — ideally by asserting the same selector present in a state where it must exist.

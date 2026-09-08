@@ -1,7 +1,14 @@
 ---
 description: Use the included `Req` library for HTTP requests — avoid `HTTPoison`, `Tesla`, and `:httpc`.
 globs: ["*.ex", "*.exs"]
-condition: '\bHTTPoison\b|:httpoison\b|\buse\s+Tesla\b|\bTesla\.(?:client|get|post|put|patch|delete|request|Middleware|Adapter)\b|\{:tesla\s*,|:httpc\b'
+condition: '\bTesla\.Middleware\.|\bTesla\.Adapter\.'
+astCondition:
+  - "HTTPoison.$M($$$A)"
+  - "Tesla.$M($$$A)"
+  - "use Tesla"
+  - "{:tesla, $$$A}"
+  - "{:httpoison, $$$A}"
+  - ":httpc.$M($$$A)"
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
 ---
 

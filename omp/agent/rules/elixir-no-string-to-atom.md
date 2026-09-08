@@ -1,7 +1,7 @@
 ---
 description: Do not pass dynamic/user input to `String.to_atom/1` — atoms are never garbage collected.
 globs: ["*.ex", "*.exs"]
-condition: 'String\.to_atom\('
+astCondition: "String.to_atom($X)"
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
 ---
 

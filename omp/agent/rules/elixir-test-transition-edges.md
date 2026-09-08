@@ -3,6 +3,7 @@ description: When adding states to a state machine, enumerate the new transition
 globs: ["*.ex"]
 condition: '\buse\s+Fsmx|\btransitions:\s*%\{|@transitions\s+%\{'
 scope: [tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Adding a state to an Fsmx or hand-rolled transition map adds edges, not just a node. Enumerate every new edge — including clear/reset edges back to earlier states — and write one behavior test per edge, not one per state.

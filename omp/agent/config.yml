@@ -9,3 +9,5 @@ modelRoles:
 composer:
   shape: pi
 hideThinkingBlock: true
+ttsr:
+  repeatMode: after-gap

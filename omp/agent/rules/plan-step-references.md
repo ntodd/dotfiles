@@ -13,6 +13,7 @@ scope:
     tool:edit(*.md),
     tool:write(*.md),
   ]
+interruptMode: never
 ---
 
 Comments and docs that reference a numbered plan ("step 3 of 5", "wired up in a later step") go stale the moment a step ships. After implementing step N, grep the modules and docs you touched for step-number references and update them: drop N from any "later steps" range, mark shipped steps done, and renumber if the plan changed.

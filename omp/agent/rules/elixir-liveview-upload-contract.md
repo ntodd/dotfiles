@@ -3,6 +3,7 @@ description: Use LiveView's complete upload contract: allow, validate, render er
 globs: ["*.heex", "*.ex"]
 condition: '<\.live_file_input\b'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Configure uploads with `allow_upload/3`, normally in mount, including accepted types, maximum entries, and maximum size. Render `<.live_file_input upload={@uploads.name}>` inside a uniquely identified form that has both `phx-change` and `phx-submit`; upload validation depends on the change binding.

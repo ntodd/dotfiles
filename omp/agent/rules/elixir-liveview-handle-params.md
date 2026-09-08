@@ -3,6 +3,7 @@ description: Load stable LiveView data in `mount/3`; reserve `handle_params/3` f
 globs: ["lib/**/*_web/**/*.ex"]
 condition: '\bdef\s+handle_params\s*\('
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
+interruptMode: never
 ---
 
 `handle_params/3` runs after mount and after every live patch. Load data that is stable for the LiveView lifecycle in `mount/3`; load or recompute only path/query-driven state expected to change through `patch` in `handle_params/3`.

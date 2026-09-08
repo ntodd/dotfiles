@@ -3,6 +3,7 @@ description: Use `stream_async/3` for asynchronous collection loads instead of m
 globs: ["lib/**/*_web/**/*.ex"]
 condition: '(?s)\bdef\s+handle_async\b.{0,3000}?\bstream\s*\('
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
+interruptMode: never
 ---
 
 When an async operation's result is a collection intended for a LiveView stream, use the built-in `stream_async/3` abstraction:
