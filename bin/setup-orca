@@ -120,6 +120,40 @@ else
   echo ""
 fi
 
+# --- node --------------------------------------------------------------------
+#
+# The relay is a Node program and the SSH session Orca opens has a sanitized
+# environment with no nvm on PATH, so it looks for /usr/local/bin/node. The
+# Codespaces node Feature installs under /usr/local/share/nvm, which that
+# session cannot see. Symlink whatever node this shell resolves. The links live
+# in the container filesystem and vanish on rebuild, so this stays idempotent.
+
+if [ -x /usr/local/bin/node ] && [ -x /usr/local/bin/npm ]; then
+  success "✅ node on /usr/local/bin ($(/usr/local/bin/node --version))"
+else
+  node_bin=$(command -v node || true)
+  if [ -z "$node_bin" ]; then
+    warn "node not found — the orca relay needs Node 18+ on /usr/local/bin; add the node devcontainer feature or apt install nodejs"
+  else
+    node_dir=$(dirname "$(readlink -f "$node_bin")")
+    for tool in node npm npx; do
+      [ -x "$node_dir/$tool" ] && sudo ln -sfn "$node_dir/$tool" "/usr/local/bin/$tool"
+    done
+    success "✅ symlinked node/npm/npx from $node_dir into /usr/local/bin ($(/usr/local/bin/node --version))"
+  fi
+fi
+
+# node-pty ships no linux-x64 prebuild for this Node, so the relay's npm install
+# falls back to node-gyp, which needs python3 alongside make/g++. The Codespaces
+# image has the compilers but not python.
+if command -v python3 >/dev/null 2>&1; then
+  success "✅ python3 present for node-gyp ($(python3 --version 2>&1))"
+else
+  info '🚀 Installing python3 (node-gyp needs it to build node-pty)...'
+  sudo apt-get install -y -qq python3 >/dev/null
+  success "✅ python3 installed"
+fi
+
 # --- orca --------------------------------------------------------------------
 
 if [ -x "$HOME/.orca-relay/bin/orca" ]; then
