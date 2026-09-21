@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+#
+# setup-orca — make this GitHub Codespace reachable from Orca over Tailscale.
+#
+# Installs Tailscale and joins the tailnet with Tailscale SSH enabled. That is
+# the only thing Orca needs on the container side: on first connect Orca pushes
+# its relay into ~/.orca-remote/ and drops the CLI shim at ~/.orca-relay/bin/orca
+# itself.
+#
+# Node identity lives in /workspaces/.tailscale, which survives stop/start AND
+# full container rebuilds, so the codespace keeps the same tailnet hostname and
+# IP for its whole life. Only /workspaces survives a rebuild, so the binary has
+# to be reinstalled afterwards; the identity is picked back up automatically
+# and no re-login is needed.
+#
+# Personal setup, scoped to this codespace. Nothing touches the repo or the
+# devcontainer. Idempotent: re-run any time, and after every container rebuild.
+#
+# Optional env vars (personal Codespaces secrets work well for these):
+#   TS_AUTHKEY        reusable, NON-ephemeral tailscale auth key. Only needed
+#                     the first time a codespace joins; without it you get a
+#                     browser login URL instead.
+#   ORCA_TS_HOSTNAME  tailscale hostname (default: cs-<repo name>)
+
+set -euo pipefail
+
+TS_STATE_DIR=/workspaces/.tailscale
+
+info() {
+  printf "\r  [ \033[00;34m..\033[0m ] $1\n"
+}
+
+warn() {
+  printf "\r  [ \033[0;33m??\033[0m ] $1\n"
+}
+
+success() {
+  printf "\r\033[2K  [ \033[00;32mOK\033[0m ] $1\n"
+}
+
+fail() {
+  printf "\r\033[2K  [\033[0;31mFAIL\033[0m] $1\n"
+  echo ''
+  exit 1
+}
+
+[ "${CODESPACES:-}" = "true" ] || fail "This only runs inside a GitHub Codespace"
+
+repo_name=$(basename "${GITHUB_REPOSITORY:-codespace}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | sed 's/-*$//')
+ts_hostname="${ORCA_TS_HOSTNAME:-cs-${repo_name}}"
+
+# --- tailscale ---------------------------------------------------------------
+
+if command -v tailscale >/dev/null 2>&1; then
+  success "✅ tailscale already installed"
+else
+  info '🚀 Installing tailscale...'
+  curl -fsSL https://tailscale.com/install.sh | sh
+  success "✅ tailscale installed"
+fi
+
+tailscaled_running() { pgrep -x tailscaled >/dev/null 2>&1; }
+
+backend_state() {
+  tailscale status --json 2>/dev/null | sed -n 's/.*"BackendState": *"\([^"]*\)".*/\1/p' | head -1
+}
+
+wait_for_tailscaled() {
+  for _ in $(seq 1 15); do
+    tailscale status >/dev/null 2>&1 && return 0
+    # status exits non-zero when logged out but the daemon still answers;
+    # treat "any response" as up by checking the backend state string
+    [ -n "$(backend_state)" ] && return 0
+    sleep 1
+  done
+  return 1
+}
+
+start_tailscaled() {
+  local tun_flag=$1
+  # shellcheck disable=SC2086
+  sudo sh -c "nohup tailscaled --statedir=$TS_STATE_DIR $tun_flag >>$TS_STATE_DIR/tailscaled.log 2>&1 &"
+}
+
+if tailscaled_running; then
+  success "✅ tailscaled already running"
+else
+  sudo mkdir -p "$TS_STATE_DIR"
+  sudo chmod 700 "$TS_STATE_DIR"
+  info '🚀 Starting tailscaled (kernel tun)...'
+  start_tailscaled ""
+  sleep 3
+  if ! tailscaled_running; then
+    warn "kernel tun failed; retrying with userspace networking (inbound still works)"
+    start_tailscaled "--tun=userspace-networking"
+    sleep 3
+  fi
+  tailscaled_running || fail "tailscaled did not start — see $TS_STATE_DIR/tailscaled.log"
+  wait_for_tailscaled || fail "tailscaled started but is not responding"
+  success "✅ tailscaled running"
+fi
+
+state=$(backend_state)
+if [ "$state" = "Running" ]; then
+  success "✅ tailscale logged in ($(tailscale ip -4 2>/dev/null | head -1))"
+elif [ -n "${TS_AUTHKEY:-}" ]; then
+  info '🚀 Joining tailnet with auth key...'
+  sudo tailscale up --auth-key="$TS_AUTHKEY" --ssh --hostname="$ts_hostname" \
+    --operator="$USER" --accept-dns=false --accept-routes=false
+  success "✅ joined tailnet as $ts_hostname"
+elif [ -t 0 ]; then
+  info '🚀 No TS_AUTHKEY set — starting interactive login (follow the URL)...'
+  sudo tailscale up --ssh --hostname="$ts_hostname" \
+    --operator="$USER" --accept-dns=false --accept-routes=false
+  success "✅ joined tailnet as $ts_hostname"
+else
+  warn "not logged in to tailscale and no TS_AUTHKEY — run this to finish:"
+  echo ""
+  echo "    sudo tailscale up --ssh --hostname=$ts_hostname --operator=$USER --accept-dns=false --accept-routes=false"
+  echo ""
+fi
+
+# --- orca --------------------------------------------------------------------
+
+if [ -x "$HOME/.orca-relay/bin/orca" ]; then
+  success "✅ orca relay present ($(ls -d "$HOME"/.orca-remote/relay-* 2>/dev/null | head -1 | xargs -r basename))"
+else
+  info "orca relay not installed yet — connect from Orca on the Mac and it installs itself into ~/.orca-remote"
+fi
+
+echo ""
+info "connect from Orca to $ts_hostname; then check 'orca repo list --json' and re-add worktrees if a rebuild cleared them"
