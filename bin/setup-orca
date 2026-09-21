@@ -154,6 +154,21 @@ else
   success "✅ python3 installed"
 fi
 
+# --- omp ---------------------------------------------------------------------
+#
+# Orca launches `omp` in each pane. The installer drops a prebuilt binary into
+# ~/.local/bin, which is not part of the image and so is gone after a rebuild.
+# ~/.omp/agent config comes from script/setup via the dotfiles clone.
+
+if command -v omp >/dev/null 2>&1; then
+  success "✅ omp present ($(omp --version 2>/dev/null | head -1))"
+else
+  info '🚀 Installing Oh My Pi (omp)...'
+  curl -fsSL https://omp.sh/install | sh
+  command -v omp >/dev/null 2>&1 || [ -x "$HOME/.local/bin/omp" ] || fail "omp did not install — see https://omp.sh"
+  success "✅ omp installed ($("$HOME/.local/bin/omp" --version 2>/dev/null | head -1))"
+fi
+
 # --- orca --------------------------------------------------------------------
 
 if [ -x "$HOME/.orca-relay/bin/orca" ]; then
