@@ -1,0 +1,293 @@
+# Generated footage and stills. `npm run images` then `npm run clips`.
+# Each entry is cached by a hash of its settings; edit a prompt to regenerate
+# just that asset, or pass --force <id>.
+
+images:
+  # First frames for image-to-video, so the people stay consistent.
+  - id: marcus-desk
+    model: google/gemini-3-pro-image
+    aspect: "16:9"
+    size: 2K
+    prompt: >-
+      Photorealistic still from a smartphone front camera, propped in landscape
+      on a desk at eye level. A friendly Black man in his early fifties, a CEO,
+      short salt-and-pepper beard, navy quarter-zip sweater over a white
+      collared shirt, sits at his desk and looks straight into the lens with a
+      warm, natural half smile, about to speak. Medium close-up framed from
+      mid-chest up, head in the upper third. Bright modern corner office,
+      soft window light from the left, a tall plant and blurred bookshelves
+      behind him, shallow depth of field. Crisp, clean, well exposed, true to
+      life skin tones. He is centered in the frame. This image IS the phone's
+      view, so no phone, tripod, or camera appears anywhere in the frame.
+      No text, no UI, no watermark.
+
+  - id: marcus-behind-phone
+    model: google/gemini-3-pro-image
+    aspect: "16:9"
+    size: 2K
+    reference: marcus-desk
+    prompt: >-
+      Same man, same outfit, same office as the reference image. Cinematic
+      shot from behind and slightly to the side of a smartphone that stands in
+      landscape on a small desk tripod in the foreground (we see the back of
+      the phone, softly out of focus, its screen not visible). He sits a
+      little further back, relaxed, smiling and looking at the phone. Warm
+      morning window light, shallow depth of field, 35mm film look, premium
+      commercial photography. No text, no logos, no watermark.
+
+  - id: maya-laptop
+    model: google/gemini-3-pro-image
+    aspect: "16:9"
+    size: 2K
+    prompt: >-
+      Photorealistic commercial still. An East Asian woman in her early
+      thirties, an internal communications manager, shoulder-length dark
+      hair, cream knit top, sits at a light wood desk with an open laptop in a
+      bright, airy modern office with plants. Three-quarter view from the
+      front-left; she looks at the laptop screen with a neutral, focused
+      expression. The laptop screen faces away from camera. Soft daylight,
+      shallow depth of field, clean and calm, premium tech brand photography.
+      No text, no logos, no watermark.
+
+  # Posters for the film on the marketing site. No text: the play button
+  # and label are live HTML over the image.
+  - id: poster-desk
+    model: google/gemini-3-pro-image
+    aspect: "16:9"
+    size: 2K
+    reference: marcus-desk
+    prompt: >-
+      Cinematic still for a premium product film. The same man as the
+      reference, same navy quarter-zip, sits at his bright office desk and
+      talks warmly to a smartphone standing in landscape on a small tripod in
+      the foreground right. The phone's screen glows and shows him being
+      recorded (a live front-camera view, a small red recording dot, no
+      readable text). Soft window light, a subtle violet rim light on the
+      phone edge, shallow depth of field, Apple-style commercial photography.
+      Generous calm negative space on the left third. No text, no logos, no
+      watermark.
+
+  - id: poster-phone
+    model: google/gemini-3-pro-image
+    aspect: "16:9"
+    size: 2K
+    reference: marcus-desk
+    prompt: >-
+      Premium product-film key art. A modern smartphone held sideways floats
+      slightly tilted in a calm, softly lit studio space with a smooth
+      near-white to pale violet gradient background. Its screen shows the
+      man from the reference, full-bleed and sharp, smiling mid-sentence as
+      if recording a message, with a small red record dot in the corner and
+      no readable text. Realistic device, soft contact shadow, crisp detail,
+      tasteful, minimal, like an Apple keynote slide. No text, no logos, no
+      watermark.
+
+  - id: poster-over-shoulder
+    model: google/gemini-3-pro-image
+    aspect: "16:9"
+    size: 2K
+    reference: marcus-desk
+    prompt: >-
+      Cinematic over-the-shoulder shot from behind a smartphone on a desk
+      tripod, the phone in sharp focus in the lower right with its glowing
+      screen showing the man from the reference recording himself (face
+      visible on the screen, a small red record dot, no readable text); the
+      man himself sits softly out of focus beyond it in his bright office,
+      smiling. Warm natural light, shallow depth of field, premium commercial
+      look, calm negative space upper left. No text, no logos, no watermark.
+
+clips:
+  # The CEO recording himself. Also becomes the fake camera for the real
+  # recorder, so the teleprompter script in demo/record.mjs matches his line.
+  - id: marcus-talk
+    model: google/veo-3.1-fast
+    first_frame: marcus-desk
+    duration: 8
+    resolution: 1080p
+    aspect: "16:9"
+    audio: true
+    prompt: >-
+      The man looks into the phone's front camera and speaks warmly and
+      confidently to his team, natural small head movements and hand gestures,
+      he smiles on the last words. He says: "Hi everyone. What a quarter!
+      Before anything else, I just want to say thank you." Static camera, as
+      if the phone is propped on the desk. Quiet office room tone, no music.
+
+  # Continues marcus-talk (from its last frame, extracted by derive.sh), so
+  # the recording keeps going after his line while it sends.
+  - id: marcus-more
+    model: google/veo-3.1-fast
+    first_frame: marcus-talk-end
+    duration: 6
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Static camera, the phone's front camera view. The man keeps talking
+      warmly and naturally to his team, relaxed small gestures and nods, as
+      if sharing an update, and finishes with a warm smile. Same framing,
+      same light, no cuts.
+
+  # Plays before marcus-talk in the fake camera, so he starts speaking right
+  # as recording starts. Starts and ends on the same frame as marcus-talk.
+  - id: marcus-idle
+    model: google/veo-3.1-fast
+    first_frame: marcus-desk
+    last_frame: marcus-desk
+    duration: 6
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Static camera, the phone's front camera view. The man sits comfortably
+      at his desk, glances down at the phone screen, settles in his chair,
+      takes a small breath and smiles warmly at the camera with his mouth
+      closed, ready to begin. Subtle, natural movement only.
+
+  - id: marcus-behind
+    model: google/veo-3.1-fast
+    first_frame: marcus-behind-phone
+    duration: 6
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Slow, smooth cinematic push-in toward the phone on the tripod. The man
+      leans in, reaches forward and taps the phone screen once, then sits back
+      and starts talking to it with a relaxed smile. Soft morning light,
+      shallow depth of field.
+
+  - id: maya-frustrated
+    model: google/veo-3.1-fast
+    first_frame: maya-laptop
+    duration: 6
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      She reads something on the laptop, her face falls, she sighs, leans
+      back and rubs her forehead, mildly exasperated in a relatable, slightly
+      comedic way. Very slow push-in. Soft daylight.
+
+  - id: maya-happy
+    model: google/veo-3.1-fast
+    first_frame: maya-laptop
+    duration: 6
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      She looks at the laptop, her eyes light up and she breaks into a big,
+      genuine smile, nods, and gives a small satisfied fist pump. Slow, smooth
+      camera arc to the right. Soft daylight.
+
+  # Other people who "sent a video", for the library and the scale montage.
+  - id: face-warehouse
+    model: google/veo-3.1-lite
+    duration: 4
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Front-camera smartphone video, landscape, eye level. A cheerful Latina
+      operations manager in her forties wearing a hi-vis vest stands in a
+      bright, clean warehouse, shelving and a forklift softly blurred behind
+      her, and talks warmly to the camera. Natural light, crisp, realistic.
+
+  - id: face-clinic
+    model: google/veo-3.1-lite
+    duration: 4
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Front-camera smartphone video, landscape, eye level. A South Asian nurse
+      practitioner in her thirties in teal scrubs, in a modern bright clinic
+      corridor, smiles and speaks kindly to the camera. Soft light, realistic.
+
+  - id: face-backstage
+    model: google/veo-3.1-lite
+    duration: 4
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Front-camera smartphone video, landscape, eye level. An energetic
+      conference speaker in his thirties with a lanyard, backstage, warm
+      stage-light bokeh behind him, talks excitedly to the camera and laughs.
+      Realistic, vibrant. The frame is the camera's own view, full frame: no
+      phone, screen, picture-in-picture, UI, or text anywhere.
+
+  - id: face-homeoffice
+    model: google/veo-3.1-lite
+    duration: 4
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Front-camera smartphone video, landscape, eye level. A white woman in
+      her fifties, a regional director with short silver hair and a blazer,
+      in a tidy home office with a bookshelf and window light, speaks
+      confidently and warmly to the camera. Realistic.
+
+  - id: face-cafe
+    model: google/veo-3.1-lite
+    duration: 4
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Front-camera smartphone video, landscape, eye level. A young East Asian
+      man wearing an apron, a café owner, in his warm, sunlit café with an
+      espresso machine blurred behind him, smiles and talks to the camera
+      about his business. Realistic, cozy.
+
+  - id: face-engineer
+    model: google/veo-3.1-lite
+    duration: 4
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      Front-camera smartphone video, landscape, eye level. A young Black woman
+      software engineer with braids and glasses, in a bright modern startup
+      office, smiles and speaks enthusiastically to the camera. Realistic.
+
+  - id: face-elena
+    model: google/veo-3.1-fast
+    duration: 4
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      A medium close-up, filmed from the point of view of the camera she is
+      speaking into. An elegant Latina woman in her fifties, a CFO, in a
+      charcoal blazer, sits in a high-rise office with a softly blurred city
+      view and speaks warmly and confidently straight into the lens. Her hands
+      are empty and relaxed. Nothing is between her and the lens: no phone,
+      device, screen, picture-in-picture, UI, or text anywhere in the frame.
+      Natural light, realistic.
+
+  - id: face-sam
+    model: google/veo-3.1-fast
+    duration: 4
+    resolution: 1080p
+    aspect: "16:9"
+    audio: false
+    prompt: >-
+      A medium close-up, filmed from the point of view of the camera he is
+      speaking into. A cheerful white man in his forties, a VP of Sales,
+      sleeves rolled up, in a bright glass meeting room, grins and talks
+      energetically straight into the lens. His hands are empty. Nothing is
+      between him and the lens: no phone, device, screen, picture-in-picture,
+      UI, or text anywhere in the frame. Realistic.
+
+  # More people for the wall, so no face repeats nearby.
+  - {id: face-farmer, model: google/veo-3.1-lite, duration: 4, resolution: 1080p, aspect: "16:9", audio: false, prompt: "Front-camera smartphone video, landscape, eye level. A weathered, friendly white farmer in his sixties in a flannel shirt and cap, standing in a sunny green field with a tractor far behind, talks warmly to the camera. The frame is the camera's own view: no phone, UI, or text. Realistic."}
+  - {id: face-retail, model: google/veo-3.1-lite, duration: 4, resolution: 1080p, aspect: "16:9", audio: false, prompt: "Front-camera smartphone video, landscape, eye level. A young Black man, a store manager in a green polo with a name badge, in a bright modern retail store with shelves behind him, smiles and talks to the camera. The frame is the camera's own view: no phone, UI, or text. Realistic."}
+  - {id: face-lab, model: google/veo-3.1-lite, duration: 4, resolution: 1080p, aspect: "16:9", audio: false, prompt: "Front-camera smartphone video, landscape, eye level. A Middle Eastern woman scientist in her forties wearing a white lab coat and glasses in a bright laboratory with glassware behind her, speaks thoughtfully to the camera. The frame is the camera's own view: no phone, UI, or text. Realistic."}
+  - {id: face-construction, model: google/veo-3.1-lite, duration: 4, resolution: 1080p, aspect: "16:9", audio: false, prompt: "Front-camera smartphone video, landscape, eye level. A Pacific Islander man in his thirties wearing a white hard hat and hi-vis jacket on a construction site with cranes softly blurred behind, grins and talks to the camera. The frame is the camera's own view: no phone, UI, or text. Realistic."}
+  - {id: face-teacher, model: google/veo-3.1-lite, duration: 4, resolution: 1080p, aspect: "16:9", audio: false, prompt: "Front-camera smartphone video, landscape, eye level. A cheerful Black woman teacher in her fifties in a colorful cardigan, in a sunny classroom with bookshelves and student art behind her, talks warmly to the camera. The frame is the camera's own view: no phone, UI, or text. Realistic."}
+  - {id: face-exec2, model: google/veo-3.1-lite, duration: 4, resolution: 1080p, aspect: "16:9", audio: false, prompt: "Front-camera smartphone video, landscape, eye level. A distinguished South Asian man in his sixties, a company chairman in a navy suit without a tie, in a quiet wood-paneled office, speaks calmly and warmly to the camera. The frame is the camera's own view: no phone, UI, or text. Realistic."}
+  - {id: face-chef, model: google/veo-3.1-lite, duration: 4, resolution: 1080p, aspect: "16:9", audio: false, prompt: "Front-camera smartphone video, landscape, eye level. A Latino chef in his thirties in a white chef's jacket, both hands resting on the steel counter in front of him, in a busy, warm restaurant kitchen softly blurred behind him, laughs and talks to the camera. The frame is the camera's own view: he is not holding anything, and no phone, screen, UI, or text appears anywhere. Realistic."}
+  - {id: face-student, model: google/veo-3.1-lite, duration: 4, resolution: 1080p, aspect: "16:9", audio: false, prompt: "Front-camera smartphone video, landscape, eye level. A young East Asian woman in her twenties with a denim jacket, outdoors on a leafy university campus with autumn trees behind her, talks excitedly to the camera. The frame is the camera's own view: no phone, UI, or text. Realistic."}

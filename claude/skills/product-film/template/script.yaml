@@ -1,0 +1,109 @@
+# The film's script. This file drives the edit: change a line of voiceover,
+# run `npm run voice` then `npm run render`, and the timeline re-flows.
+#
+# Per scene (seconds):
+#   lead / tail   silence before / after the VO line inside the scene
+#   min           the scene is never shorter than this
+#   in            dissolve from the previous scene (0 = hard cut)
+#   in_style      "dip" to fade the old scene out before the new one comes in
+#                 (use it when both frames are busy and would ghost)
+#   breathe       share of any spare time (after fitting the music) this
+#                 scene gets as extra hold; default 1 between drop and end
+#   component     which scene component renders it (src/Main.tsx registry)
+#   dark          true for the studio (dark) background
+#   on_screen     free-form content for the component
+#
+# Scene boundaries after the drop snap to the music's beats.
+
+title: "Product: the film"
+fps: 30
+width: 1920
+height: 1080
+
+# Who the film is for and what the product is. The AI reviewer reads this.
+product: >-
+  One or two sentences: what the product does, for whom, and the one thing
+  the film must make them believe. No invented customers, metrics, or prices.
+
+brand:
+  name: Product
+  tagline: "The line the film ends on."
+  cta: "Start free"
+  url: product.app
+
+options:
+  broll: false        # live-action b-roll shots (reviewers read AI b-roll as stock)
+  highlights: false   # highlight rings + label pills on desktop shots (distracting)
+
+voice:
+  # Audition first (see SKILL.md). Gemini "Puck" is a strong US default.
+  provider: gemini          # gemini | minimax | openai-audio
+  model: google/gemini-3.8-flash-tts
+  voice: Puck
+  style: >-
+    Upbeat, warm, confident narrator for a modern software product film.
+    Crisp and friendly, smiling, never salesy. Dry and a little playful on the
+    problem, bright and assured on the solution. Natural conversational pace.
+
+music:
+  model: google/lyria-3-pro-preview
+  prompt: >-
+    Instrumental only, no vocals, no vocal chops. An upbeat, modern,
+    feel-good track for a premium software product film, around 118 BPM in a
+    major key. Bright plucked synths, warm electric piano, crisp claps, a
+    tight punchy kick, round bass. Structure: a sparse, curious intro for
+    about 12 seconds, then a short riser into a big bright drop where the full
+    groove kicks in; a confident groove with small lifts every 8 bars; around
+    75 seconds build to a final lift and land on a clean ending hit with a
+    short tail. Total length about 90 seconds. Leave room in the mids for a
+    voiceover.
+  volume: 0.55          # music level with no VO
+  duck: 0.14            # music level under VO
+  snap: true            # snap scene cuts to beats
+  drop_scene: reveal    # this scene starts on the music's drop
+
+scenes:
+  - id: hook
+    component: Statement
+    lead: 0.6
+    tail: 0.4
+    min: 5
+    vo: >-
+      The problem, in one or two plain sentences your buyer has lived.
+    on_screen:
+      headline: "The problem, *felt.*"
+
+  - id: reveal
+    component: Statement
+    in: 0.5
+    in_style: dip
+    lead: 0.3
+    tail: 0.6
+    min: 4
+    vo: >-
+      Meet Product. The promise, in one line.
+    on_screen:
+      headline: "Meet *Product.*"
+      sub: "The promise, in one line."
+
+  - id: demo
+    component: Statement
+    dark: true
+    in: 0.45
+    lead: 0.2
+    tail: 0.4
+    min: 6
+    vo: >-
+      How it works, told over real product footage. Replace this scene with
+      your own component once the captures exist.
+    on_screen:
+      headline: "How it *works.*"
+
+  - id: end
+    component: EndCard
+    in: 0.6
+    lead: 0.3
+    tail: 3.4
+    min: 5
+    vo: >-
+      Product. The line the film ends on.

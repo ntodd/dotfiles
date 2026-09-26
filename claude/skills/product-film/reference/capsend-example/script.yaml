@@ -1,0 +1,180 @@
+# CapSend product video: the script.
+#
+# This file drives the edit. Change a line of voiceover here, run
+# `npm run voice` and `npm run render`, and the timeline re-flows around
+# the new read. Scene order and ids map to components in src/scenes/.
+#
+# Timing per scene (seconds):
+#   lead  silence before the VO starts in this scene
+#   tail  hold after the VO ends, before the next scene
+#   min   the scene is never shorter than this
+# The scene boundary then snaps to the nearest musical beat (see `snap`).
+
+title: "CapSend: get the video you asked for"
+fps: 30
+width: 1920
+height: 1080
+
+options:
+  # Live-action b-roll (Marcus tapping his phone, Maya smiling at her
+  # laptop). Off: reviewers found it read as stock next to the real UI.
+  broll: false
+  # Highlight rings and label pills on the desktop shots ("Who should record
+  # it", "Up to 4K"...). The camera still zooms to each field either way.
+  highlights: false
+
+voice:
+  # Swap provider/voice to recast. Auditions in docs/voice-auditions.md.
+  provider: gemini          # gemini | minimax | openai-audio
+  model: google/gemini-3.8-flash-tts
+  voice: Puck
+  style: >-
+    Upbeat, warm, confident narrator for a modern software product film.
+    Crisp and friendly, smiling, never salesy. Dry and a little playful on the
+    problem, bright and assured on the solution. Natural conversational pace.
+  # Alternates the auditions liked:
+  #   provider: minimax, model: minimax/speech-2.8-hd, voice: English_expressive_narrator
+  #   provider: gemini,  voice: Achird
+
+music:
+  model: google/lyria-3-pro-preview
+  prompt: >-
+    Instrumental only, no vocals. An upbeat, modern, feel-good track for a
+    premium software product launch film, around 118 BPM in a major key.
+    Bright plucked synths, warm electric piano chords, crisp claps and finger
+    snaps, a tight punchy kick, round bass, subtle shimmering pads.
+    Structure: a sparse, curious, slightly tongue-in-cheek intro for about
+    12 seconds (muted plucks, light ticking percussion), then a short riser
+    into a big, bright, joyful drop where the full groove kicks in. Keep a
+    confident, driving, optimistic groove with small lifts every 8 bars.
+    Around 75 seconds, build to a final lift, then land on a clean,
+    satisfying ending hit with a short tail. Total length about 90 seconds.
+    Polished, professional mix, like an Apple or Notion product video.
+  volume: 0.55          # music level with no VO
+  duck: 0.14            # music level under VO
+  snap: true            # snap scene cuts to beats
+  # How spare time (after fitting the music) is shared, by scene.
+  breathe: {ask: 2.2, people: 1.6, record: 0.4, sending: 1.4, arrive: 2.2, scale: 1.4}
+
+scenes:
+  - id: hook
+    lead: 0.6
+    tail: 0.2
+    min: 5.5
+    vo: >-
+      You asked for one short video. What came back was sideways, squashed...
+      and three days late.
+    visual: >-
+      Three message threads (Text, Email, WeChat) stack up on a soft canvas.
+      "Could you send a quick video for the kickoff?" ... "Sure!" ... a tiny,
+      blocky, sideways clip lands ... "it's sideways" ... "file too large" ...
+      "sent it on WeChat instead". Timestamps jump from Tuesday to Friday.
+
+  - id: degrade
+    in: 0.55    # dissolve from the previous scene (s)
+    in_style: dip   # fade out, then in: these frames are too busy to overlap
+    lead: 0.1
+    tail: 0.3
+    min: 5
+    vo: >-
+      Every app it passes through squeezes it a little more. And the phone
+      that shot it? It could have done so much better.
+    visual: >-
+      The CEO's clip passes through the apps and visibly crumbles: 4K, 1080p,
+      720p, 360p. Blocking, banding, black bars. Then snap back to a pristine
+      full-quality frame on "so much better".
+
+  - id: reveal
+    lead: 0.3
+    tail: 0.6
+    min: 4
+    vo: >-
+      Meet CapSend. Send a link. Get back the original.
+    visual: >-
+      The red record dot pulses and blooms into the CapSend mark. Wordmark
+      types on. Tagline: "Send a link. Get back the original." Lands on the drop.
+
+  - id: ask
+    lead: 0.2
+    tail: 0.4
+    min: 7
+    vo: >-
+      Say what you need, add a script for the teleprompter, and choose the
+      format, quality, and length.
+    visual: >-
+      Real screen recording, New request. The title types in, instructions,
+      Landscape, script pasted, Teleprompter selected, quality High. Camera
+      glides and zooms to each field with small labels.
+
+  - id: people
+    lead: 0.1
+    tail: 0.4
+    min: 6
+    vo: >-
+      Add the people you need videos from. They get a link by email or text.
+      No app. No account.
+    visual: >-
+      Paste six leaders into "Who should record it?", Create & send. Then a
+      phone slides in: a branded email and a text message with the link.
+
+  - id: record
+    in: 0.45    # dissolve from the previous scene (s)
+    lead: 0.2
+    tail: 2.7   # room for Marcus's own "I just want to say thank you" after the line
+    min: 8
+    vo: >-
+      One tap, and they're recording. CapSend makes sure the phone is
+      sideways, keeps the script right by the lens, and records in full
+      quality, up to 4K.
+    visual: >-
+      Phone recording of the real recipient flow: the landing page, tap
+      Record, "turn your phone sideways" and the phone rotates, the live
+      preview, the countdown, recording with the teleprompter scrolling.
+
+  - id: sending
+    lead: 0.1
+    tail: 0.3
+    min: 4
+    vo: >-
+      It sends while they talk, so when they're done... they're done.
+    visual: >-
+      Split screen: the phone stops, Send my video, Sent. On the desktop the
+      row flips from "Recording now" to "Sent a video" and the count rolls up.
+
+  - id: arrive
+    in: 0.6    # dissolve from the previous scene (s)
+    in_style: dip   # fade out, then in: these frames are too busy to overlap
+    lead: 0.2
+    tail: 0.4
+    min: 8
+    vo: >-
+      Back at your desk, watch every video arrive, live. Download the
+      original, exactly as it was recorded, or hand an edit-ready copy
+      straight to your editor.
+    visual: >-
+      The submission page: the CEO's video plays, specs panel (1080p, 30 fps,
+      bitrate), Original and Edit-ready MP4 buttons, Send to an editor.
+
+  - id: scale
+    in: 0.6    # dissolve from the previous scene (s)
+    in_style: dip   # fade out, then in: these frames are too busy to overlap
+    lead: 0.1
+    tail: 0.5
+    min: 5
+    vo: >-
+      One CEO, or five hundred customers. Every video comes back looking the
+      way it should.
+    visual: >-
+      The library fills with faces: execs, a customer on a warehouse floor, a
+      clinician, a speaker backstage. Tiles pop in on the beat.
+
+  - id: end
+    in: 0.6    # dissolve from the previous scene (s)
+    lead: 0.3
+    tail: 3.4
+    min: 5
+    vo: >-
+      CapSend. Get the video you asked for.
+    visual: >-
+      End card. The CapSend mark, "Get the video you asked for.",
+      capsend.app, and a "Request your first video" button.

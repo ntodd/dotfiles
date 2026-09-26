@@ -1,0 +1,35 @@
+# Generated stills and footage. `npm run images`, then `npm run clips`.
+# Each entry is cached by a hash of its settings: edit a prompt to regenerate
+# just that asset, or pass --force <id> / --only <id>.
+#
+# Lessons (see SKILL.md): generate a still first and animate it with
+# image-to-video (first_frame, optionally last_frame) so people stay
+# consistent; say "the frame is the camera's own view: no phone, screen, UI,
+# or text anywhere" or Veo will paint phones into selfie shots; Veo Lite is
+# cheap for background faces, Fast follows prompts better.
+
+images:
+  - id: presenter
+    model: google/gemini-3-pro-image
+    aspect: "16:9"
+    size: 2K
+    prompt: >-
+      Photorealistic still from a smartphone front camera, propped in landscape
+      at eye level. [Who, wearing what, where, expression.] Medium close-up,
+      soft window light, true-to-life skin tones. He/she is centered. This
+      image IS the phone's view, so no phone, tripod, or camera appears
+      anywhere. No text, no UI, no watermark.
+
+clips:
+  - id: presenter-talk
+    model: google/veo-3.1-fast
+    first_frame: presenter
+    duration: 8
+    resolution: 1080p
+    aspect: "16:9"
+    audio: true
+    prompt: >-
+      The person looks into the phone's front camera and speaks warmly, small
+      natural gestures, smiles on the last words. They say: "[the exact line,
+      which the teleprompter script must match]". Static camera. Quiet room
+      tone, no music.

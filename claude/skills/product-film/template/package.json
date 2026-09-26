@@ -1,0 +1,49 @@
+{
+  "name": "product-film",
+  "version": "1.0.0",
+  "description": "A scripted, regenerable product film (see the product-film skill).",
+  "main": "index.js",
+  "scripts": {
+    "check-key": "$HOME/.claude/skills/product-film/scripts/check-openrouter-key.sh .env",
+    "clips": "tsx pipeline/gen-visuals.ts clips",
+    "dry-run": "pipeline/dry-run.sh",
+    "images": "tsx pipeline/gen-visuals.ts images",
+    "music": "tsx pipeline/gen-audio.ts music",
+    "music:pick": "tsx pipeline/gen-audio.ts pick-music",
+    "publish": "tsx pipeline/publish.ts",
+    "render": "pipeline/render.sh",
+    "review": "tsx pipeline/review.ts",
+    "sfx": "uv run --quiet pipeline/make_sfx.py",
+    "studio": "remotion studio src/index.ts",
+    "timeline": "tsx pipeline/build-timeline.ts",
+    "typecheck": "tsc --noEmit",
+    "voice": "tsx pipeline/gen-audio.ts voice"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
+    "@playwright/test": "^1.63.0",
+    "@remotion/bundler": "^4.0.529",
+    "@remotion/cli": "^4.0.529",
+    "@remotion/google-fonts": "^4.0.529",
+    "@remotion/media-utils": "^4.0.529",
+    "@remotion/noise": "^4.0.529",
+    "@remotion/paths": "^4.0.529",
+    "@remotion/renderer": "^4.0.529",
+    "@remotion/shapes": "^4.0.529",
+    "@remotion/transitions": "^4.0.529",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "remotion": "^4.0.529",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
