@@ -3,6 +3,7 @@ description: Prefer LiveView's built-in async and event loading states over hand
 globs: ["lib/**/*_web/**/*.ex"]
 condition: '\bassign\s*\(\s*(?:socket\s*,\s*)?(?::[a-z_]*loading[a-z_]*\??|[a-z_]*loading[a-z_]*\??\s*:)'
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
+interruptMode: never
 ---
 
 Do not add a `loading?` assign merely to model work LiveView already tracks:

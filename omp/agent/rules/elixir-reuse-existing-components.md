@@ -1,8 +1,9 @@
 ---
 description: Check for existing function components before adding raw form controls or tables in HEEx.
-globs: ["*.heex"]
+globs: ["*.heex", "**/live/**/*.ex", "*_live.ex"]
 condition: '<(?:input|select|button|form|table)(?=[\s/>])'
-scope: [tool:edit(*.heex), tool:write(*.heex)]
+scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(**/live/**/*.ex), tool:write(**/live/**/*.ex), tool:edit(*_live.ex), tool:write(*_live.ex)]
+interruptMode: never
 ---
 
 Before adding a raw `<input>`, `<select>`, `<button>`, `<form>`, or `<table>`, search the template's imported components and the project's component modules, typically defined in `.ex` files. Reuse an existing function component when its contract supports the required behavior. Shared components preserve the application's styling, accessibility, validation, and interaction conventions.

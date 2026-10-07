@@ -3,6 +3,7 @@ description: Implement `Phoenix.Param` when a resource consistently routes by sl
 globs: ["*.ex", "*.heex"]
 condition: '~p"[^"]*#\{@?[a-z_]\w*\.(?:slug|uuid|external_id|public_id)\}'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.heex), tool:write(*.heex)]
+interruptMode: never
 ---
 
 If one resource consistently appears in routes through the same slug, UUID, external ID, or public ID, implement `Phoenix.Param` for that struct and interpolate the struct directly:

@@ -3,6 +3,7 @@ description: Preserve Phoenix browser-pipeline session, LiveView flash, CSRF, an
 globs: ["lib/**/*_web/router.ex"]
 condition: '\bpipeline\s+:browser\s+do\b'
 scope: [tool:edit(lib/**/*_web/router.ex), tool:write(lib/**/*_web/router.ex)]
+interruptMode: never
 ---
 
 The standard browser pipeline should retain `fetch_session`, `fetch_live_flash`, `protect_from_forgery`, and `put_secure_browser_headers`, along with the application's accepted formats and root layout. Use `fetch_live_flash` rather than the controller-only flash plug when LiveViews participate.

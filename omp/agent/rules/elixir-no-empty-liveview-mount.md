@@ -1,7 +1,9 @@
 ---
 description: Remove LiveView `mount/3` callbacks that only return the unchanged socket.
 globs: ["*.ex", "*.exs"]
-condition: '\bdef\s+mount\([^)]*,\s*([a-z_]\w*)\s*\)\s*(?:,\s*do:\s*\{\s*:ok\s*,\s*\1\s*\}|do\s+\{\s*:ok\s*,\s*\1\s*\}\s*end\b)'
+astCondition:
+  - "def mount($_, $_, $S), do: {:ok, $S}"
+  - "def mount($_, $_, $S) do {:ok, $S} end"
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
 ---
 

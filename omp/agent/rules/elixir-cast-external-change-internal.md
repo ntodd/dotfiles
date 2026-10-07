@@ -3,6 +3,7 @@ description: Use `cast/3` for untrusted external params and `change/2` or explic
 globs: ["*.ex", "*.exs"]
 condition: '\b(?:Ecto\.Changeset\.)?cast\s*\('
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 Use `Ecto.Changeset.cast/3` at an external boundary—forms, APIs, CLI input—to filter permitted keys and convert values into schema types.

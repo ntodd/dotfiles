@@ -3,6 +3,7 @@ description: Prefer function components; use a LiveComponent only when it must e
 globs: ["*.ex"]
 condition: '\buse\s+Phoenix\.LiveComponent\b|\buse\s+[A-Z][A-Za-z0-9_.]*Web\s*,\s*:live_component\b'
 scope: [tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 Use a stateless function component by default. A LiveComponent is justified when a reusable unit must own both additional state and its own event handling.

@@ -1,7 +1,7 @@
 ---
 description: Use Mox and behaviour-based dependency injection for mocks instead of patching module internals.
 globs: ["*.ex", "*.exs"]
-condition: '\b(?:import|use|alias)\s+(?:Mock|Mimic|Patch)\b|\b(?:Mock|Mimic|Patch)\.|:(?:meck|mock|mimic|patch)\b'
+condition: '\b(?:import|use|alias)\s+(?:Mock|Mimic|Patch)\b|\b(?:Mock|Mimic|Patch)\.(?:with_mock|with_mocks|copy|stub|expect|reject|patch|assert_called|called|verify!?)\b|\{:(?:meck|mock|mimic|patch)\s*,'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
 ---
 

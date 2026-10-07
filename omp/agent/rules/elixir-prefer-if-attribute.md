@@ -3,6 +3,7 @@ description: Prefer HEEx `:if` attributes for conditional elements; use an `if` 
 globs: ["*.heex", "*.ex"]
 condition: '(?s)<%=\s*if\b(?:(?!<%\s*else\s*%>).)*?<%\s*end\s*%'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 When a HEEx conditional only controls whether an element is rendered, put `:if` on that element:

@@ -1,7 +1,7 @@
 ---
 description: Use Phoenix verified routes (`~p`) for internal paths instead of hardcoded route strings or legacy helpers.
 globs: ["*.ex", "*.exs", "*.heex"]
-condition: '\b(?:redirect|push_navigate|push_patch)\s*\([^)]*\bto:\s*(?:"/|\{\s*"/)|(?:href|navigate|patch)\s*=\s*(?:"/|\{\s*"/)|\b[A-Za-z_]\w*_(?:path|url)\s*\('
+condition: '\b(?:redirect|push_navigate|push_patch)\s*\([^)]*\bto:\s*(?:"/|\{\s*"/)|(?:href|navigate|patch)\s*=\s*(?:"/|\{\s*"/)|\bRoutes\.[a-z_]\w*_(?:path|url)\s*\(|\b(?!static_)[a-z_]\w*_(?:path|url)\s*\(\s*(?:@?conn|@?socket|[A-Z][A-Za-z0-9_.]*Endpoint)\b'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs), tool:edit(*.heex), tool:write(*.heex)]
 ---
 

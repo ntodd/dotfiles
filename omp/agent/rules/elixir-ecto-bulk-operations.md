@@ -3,6 +3,7 @@ description: Treat Ecto bulk operations as low-level APIs that bypass changesets
 globs: ["*.ex", "*.exs"]
 condition: '\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.(?:insert_all|update_all|delete_all)\s*\('
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 `insert_all`, `update_all`, and `delete_all` bypass ordinary changesets and schema callbacks. They do not automatically manage associations, ordinary UUID generation, or `inserted_at`/`updated_at` values; set every required value explicitly.

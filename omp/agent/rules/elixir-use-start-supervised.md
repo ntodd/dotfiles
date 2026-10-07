@@ -3,6 +3,7 @@ description: Start test processes with `start_supervised!/1` so ExUnit guarantee
 globs: ["test/**/*.exs", "*_test.exs"]
 condition: '(?::[a-z_]\w*|\b[A-Z][A-Za-z0-9_.]*)\.start_link\s*\(|\bstart_supervised\s*\('
 scope: [tool:edit(test/**/*.exs), tool:write(test/**/*.exs), tool:edit(*_test.exs), tool:write(*_test.exs)]
+interruptMode: never
 ---
 
 Use `start_supervised!/1` when a test needs to start a process. ExUnit will link it to the test supervisor and guarantee cleanup:

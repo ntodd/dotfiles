@@ -3,6 +3,7 @@ description: Give every test child process explicit SQL Sandbox ownership and fi
 globs: ["test/**/*.exs", "*_test.exs"]
 condition: '\bEcto\.Adapters\.SQL\.Sandbox\.(?:allow|mode|checkout|start_owner!|stop_owner)\s*\('
 scope: [tool:edit(test/**/*.exs), tool:write(test/**/*.exs), tool:edit(*_test.exs), tool:write(*_test.exs)]
+interruptMode: never
 ---
 
 The SQL Sandbox connection is owned by the test process. When another process queries through the Repo, explicitly grant it access with `Sandbox.allow/3` or rely on supported caller tracking.

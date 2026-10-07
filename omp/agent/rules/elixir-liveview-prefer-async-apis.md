@@ -3,6 +3,7 @@ description: Prefer LiveView's high-level async APIs over raw Tasks; use `assign
 globs: ["lib/**/*_web/**/*.ex"]
 condition: '\bstart_async\s*\(|\b(?:Task\.(?:async|start|start_link)|Task\.Supervisor\.(?:async|async_nolink|start_child)|spawn(?:_link)?)\s*\('
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
+interruptMode: never
 ---
 
 Choose the highest-level LiveView async abstraction that matches the result:

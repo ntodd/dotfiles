@@ -3,6 +3,7 @@ description: Give non-stream HEEx `:for` comprehensions a stable `:key` whenever
 globs: ["*.heex", "*.ex"]
 condition: '<(?=[^>]*\s:for=\{)(?![^>]*\s:key=\{)(?![^>]*@streams\.)[^>]+>'
 scope: [tool:edit(*.heex), tool:write(*.heex), tool:edit(*.ex), tool:write(*.ex)]
+interruptMode: never
 ---
 
 For ordinary HEEx comprehensions, provide stable identity so LiveView can track inserts, removals, and reordering efficiently:

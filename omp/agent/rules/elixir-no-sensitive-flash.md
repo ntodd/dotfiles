@@ -1,7 +1,7 @@
 ---
 description: Keep LiveView flash messages user-facing and non-sensitive because navigation may temporarily store them in the client.
 globs: ["lib/**/*_web/**/*.ex"]
-condition: '\bput_flash\s*\('
+condition: 'put_flash\s*\([^)]*(?:#\{|inspect\s*\(|Exception\.(?:message|format)|(?<!:)\b(?:reason|error|err|exception|changeset|stacktrace|token)\b|traverse_errors)'
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
 ---
 

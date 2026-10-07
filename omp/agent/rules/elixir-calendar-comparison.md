@@ -1,7 +1,7 @@
 ---
 description: Compare calendar structs with their calendar APIs, not Elixir's structural ordering operators.
 globs: ["*.ex", "*.exs"]
-condition: '~[DTUN]\[[^\]]+\]\s*(?:<=|>=|<|>)\s*~[DTUN]\[[^\]]+\]|\b[a-z_]\w*(?:date|time|_at)\s*(?:<=|>=|<|>)\s*[a-z_]\w*(?:date|time|_at)\b'
+condition: '~[DTUN]\[[^\]]+\]\s*(?:<=|>=|<|>)\s*~[DTUN]\[[^\]]+\]|\b[a-z_]\w*(?:_date|_time|_at|datetime)\s*(?:<=|>=|<|>)\s*[a-z_]\w*(?:_date|_time|_at|datetime)\b'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
 ---
 

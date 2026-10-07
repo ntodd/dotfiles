@@ -1,7 +1,7 @@
 ---
 description: Keep runtime secrets and deployment configuration in `runtime.exs`; avoid accidental compile-time capture.
 globs: ["config/**/*.exs", "lib/**/*.ex", "mix.exs"]
-condition: '\b(?:System\.(?:get_env|fetch_env!)|Application\.(?:get_env|fetch_env!|compile_env!?))\s*\('
+condition: '(?m)^\s*@\w+\s+[^\n]*\b(?:System\.(?:get_env|fetch_env!)|Application\.(?:get_env|fetch_env!))\s*\(|\bApplication\.compile_env!?\s*\(|^  (?:[a-z_]\w*\s*=\s*)?(?:System\.(?:get_env|fetch_env!)|Application\.(?:get_env|fetch_env!))\s*\('
 scope: [tool:edit(config/**/*.exs), tool:write(config/**/*.exs), tool:edit(lib/**/*.ex), tool:write(lib/**/*.ex), tool:edit(mix.exs), tool:write(mix.exs)]
 ---
 

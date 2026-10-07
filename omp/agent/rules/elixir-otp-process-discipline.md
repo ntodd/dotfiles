@@ -3,6 +3,7 @@ description: Use OTP processes for runtime properties, encapsulate their interfa
 globs: ["lib/**/*.ex"]
 condition: '\buse\s+GenServer\b|\b(?:GenServer\.(?:call|cast)|Agent\.(?:get|update|get_and_update)|spawn(?:_link)?\s*\(|Task\.start(?:_link)?\s*\()'
 scope: [tool:edit(lib/**/*.ex), tool:write(lib/**/*.ex)]
+interruptMode: never
 ---
 
 Introduce a GenServer, Agent, or process only to model a runtime property such as state ownership, serialization, concurrency, a resource lifecycle, timers, or failure isolation. Keep ordinary calculations and domain transitions in pure modules/functions so a process does not become a needless bottleneck.

@@ -3,6 +3,7 @@ description: Keep database transactions atomic and short; never perform irrevers
 globs: ["*.ex", "*.exs"]
 condition: '\b(?:[A-Z][A-Za-z0-9_.]*\.)?Repo\.transact\s*\(|\b(?:Ecto\.)?Multi\.run\s*\('
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 Group dependent database writes in one `Repo.transact/2` operation. Use ordinary `with`/`case` control flow for a fixed workflow; use `Ecto.Multi` when operations are dynamic or benefit from composition and introspection.

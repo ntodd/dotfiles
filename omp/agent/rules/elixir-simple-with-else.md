@@ -1,8 +1,9 @@
 ---
 description: Keep `with ... else` clauses simple; normalize distinct errors close to the operation that produced them.
 globs: ["*.ex", "*.exs"]
-condition: '(?s)\bwith\b.{0,3000}?\belse\b'
+astCondition: "with $$$C do $$$B else $$$E end"
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 A `with` expression should make the success path linear. Avoid a large `else` block that must guess which clause produced a shared or ambiguous error shape.

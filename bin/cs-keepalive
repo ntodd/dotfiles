@@ -13,7 +13,7 @@
 #   cs-keepalive 90m
 #   cs-keepalive 4h
 #
-# Run it in the background from herdr/tmux: cs-keepalive 3h &
+# Run it in the background from tmux: cs-keepalive 3h &
 
 set -euo pipefail
 

@@ -3,6 +3,7 @@ description: Put shareable and recoverable LiveView UI state in the URL and driv
 globs: ["lib/**/*_web/**/*.ex"]
 condition: '(?i)\bdef\s+handle_event\(\s*"(?:select[-_]?tab|tab|filter|sort|search|page|paginate|next[-_]?page|prev(?:ious)?[-_]?page)"'
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
+interruptMode: never
 ---
 
 Tabs, filters, sorting, search terms, and pagination that users should bookmark, share, or recover after reconnect belong in path/query parameters. Change them with `<.link patch>` or `push_patch/2`, validate them in `handle_params/3`, and derive the rendered state from the URL.

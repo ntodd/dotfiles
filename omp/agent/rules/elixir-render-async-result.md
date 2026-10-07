@@ -3,6 +3,7 @@ description: Pair `assign_async` with `<.async_result>` so loading, failure, and
 globs: ["*.ex", "*.heex"]
 condition: '\bassign_async\s*\(|@\w+\.(?:(?:loading|failed|result)\b|ok\?)'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.heex), tool:write(*.heex)]
+interruptMode: never
 ---
 
 `assign_async/3` stores an `AsyncResult` under every requested key. Render it with the built-in component instead of manually branching on `.loading`, `.failed`, `.ok?`, and `.result`:

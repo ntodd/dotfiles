@@ -3,6 +3,7 @@ description: Use dot access or pattern matching for required atom keys; reserve 
 globs: ["*.ex", "*.exs"]
 condition: '(?<!@)\b[a-z_]\w*\s*\[:[a-z_]\w*\]'
 scope: [tool:edit(*.ex), tool:write(*.ex), tool:edit(*.exs), tool:write(*.exs)]
+interruptMode: never
 ---
 
 When an atom key is required to exist, use `map.key` or pattern match it. This documents the invariant, enables compiler checks for structs, and fails at the source instead of propagating `nil`.

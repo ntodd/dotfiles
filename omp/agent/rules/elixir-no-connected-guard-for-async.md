@@ -1,7 +1,7 @@
 ---
 description: Do not guard LiveView async APIs with `connected?/1`; they already defer task startup until connected.
 globs: ["lib/**/*_web/**/*.ex"]
-condition: '(?s)\b(?:if|case)\s+connected\?\(\s*socket\s*\).{0,2000}?\b(?:assign_async|start_async|stream_async)\s*\(|\bconnected\?\(\s*socket\s*\)\s*(?:&&|and).{0,500}?\b(?:assign_async|start_async|stream_async)\s*\('
+condition: '(?s)\b(?:if|case)\s+connected\?\(\s*socket\s*\)(?:(?!\n\s*end\b).){0,2000}?\b(?:assign_async|start_async|stream_async)\s*\(|\bconnected\?\(\s*socket\s*\)\s*(?:&&|and)[^\n]{0,500}?\b(?:assign_async|start_async|stream_async)\s*\('
 scope: [tool:edit(lib/**/*_web/**/*.ex), tool:write(lib/**/*_web/**/*.ex)]
 ---
 
