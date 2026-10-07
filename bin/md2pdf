@@ -175,8 +175,10 @@ th, td {
     vertical-align: top;
     text-align: left;
     hyphens: auto;
-    min-width: 0;
-    overflow-wrap: anywhere;
+    /* break-word (not anywhere) keeps each column's min-content width, so a
+       long prose column can't crush short columns down to one character. */
+    min-width: 4em;
+    overflow-wrap: break-word;
 }
 
 /* The first column is commonly a short ID/status field.  Give it enough room
