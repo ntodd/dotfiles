@@ -1,0 +1,7 @@
+highpass=f=100:poles=2,highpass=f=100:poles=2,
+equalizer=f=HUM_HZ:width_type=q:w=40:g=-12,
+equalizer=f=220:width_type=o:w=1:g=-2.5,
+equalizer=f=3200:width_type=o:w=1.5:g=4,
+equalizer=f=6500:width_type=o:w=1.5:g=2.5,
+acompressor=threshold=-22dB:ratio=3:attack=8:release=180:knee=4:makeup=4,
+loudnorm=I=-16:TP=-1.5:LRA=8

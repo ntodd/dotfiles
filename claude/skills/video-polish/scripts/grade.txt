@@ -1,0 +1,8 @@
+hqdn3d=1.5:1.5:4:4,
+crop=964:542:30:26,
+curves=master='0/0 0.12/0.10 0.5/0.55 0.85/0.83 1/0.96':red='0/0 0.5/0.48 1/1':blue='0/0 0.5/0.51 1/0.98',
+eq=contrast=1.06:saturation=1.03,
+vignette=angle=PI/5.5:mode=forward,
+scale=1920:1080:flags=lanczos,
+unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount=0.6,
+format=yuv420p

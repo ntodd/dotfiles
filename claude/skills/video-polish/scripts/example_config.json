@@ -1,0 +1,31 @@
+{
+  "_comment": "Values from the first job this shipped on. footage = graded+upscaled 1920x1080 clip. All timing in output seconds except footage_in/out and dialogue_in (source seconds). speech_at - dialogue_in must equal dissolve_at - footage_in for sync.",
+  "footage": "preview_esrgan_1080p.mp4",
+  "footage_size": [1920, 1080],
+  "dialogue_wav": "work/cleanB.wav",
+  "music": "assets/music/bed.mp3",
+  "music_db": -14,
+  "logo_png": "assets/logo_white_trimmed.png",
+  "lower_third_png": "assets/lower_third.png",
+  "bg_hex": "12171c",
+  "accent_hex": "8df397",
+  "fps": "600/19",
+  "work_dir": "work",
+  "output_prefix": "Deliverable_v1",
+  "timing": {
+    "speech_at": 3.0,
+    "dialogue_in": 1.30,
+    "dissolve_at": 3.7,
+    "dissolve_len": 0.8,
+    "footage_in": 2.0,
+    "footage_out": 62.4,
+    "end_fade": 0.7,
+    "lower_third_in": 6.0,
+    "lower_third_out": 12.2
+  },
+  "layout": {
+    "wide":     {"size": [1920, 1080], "crop": [1920, 1080], "logo_w": 1100, "logo_y": 380, "line_y": 685, "lt_scale": 1.0, "lt_x": 96, "lt_bottom": 96},
+    "square":   {"size": [1080, 1080], "crop": [1080, 1080], "logo_w": 880,  "logo_y": 380, "line_y": 631, "lt_scale": 1.1, "lt_x": 64, "lt_bottom": 90},
+    "vertical": {"size": [1080, 1920], "crop": [608, 1080],  "track": true, "logo_w": 900, "logo_y": 760, "line_y": 1016, "lt_scale": 1.3, "lt_x": 72, "lt_bottom": 320}
+  }
+}
