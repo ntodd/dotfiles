@@ -7,7 +7,12 @@
 # downloads the model if missing, then starts ds4-server with settings chosen
 # for coding-agent (oh-my-pi) use.
 #
-# Usage: ds4-start [--dry-run] [--help]
+# Usage: ds4-start [--dry-run] [--help] [MODEL]
+#
+# MODEL picks a downloaded GGUF for this run only, without touching the
+# ./ds4flash.gguf link: a path, a file name under ./gguf, or a unique substring
+# of one. Without it the link is used. To change the default, run
+# ./select_model.sh in the checkout.
 #
 # The checkout is located in this order:
 #   1. $DS4_ROOT
@@ -28,19 +33,32 @@
 #   DS4_MTP_EXACT_SAMPLING=1 ds4-start     # exact sampling, not opportunistic
 #   DS4_DRY_RUN=1 ds4-start                # print the command, don't run it
 #
+# Qwen3.8 Flash Next GGUFs are detected from the file header and get their own
+# defaults (built-in MTP, native 262144-token context):
+#   ds4-start Next-Q4                      # run the Q4 Qwen GGUF
+#   DS4_MTP=0 ds4-start Next-Q4            # Qwen without speculative decoding
+#   DS4_VISION=mmproj-Qwen3.8-Flash-Next-Q8_0.gguf ds4-start Next-Q4
+#
 set -e
 
 DRY_RUN=${DS4_DRY_RUN:-0}
 
 usage() {
-    sed -n '3,29p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '3,40p' "$0" | sed 's/^# \{0,1\}//'
 }
 
+MODEL_ARG=
 for arg in "$@"; do
     case "$arg" in
         -h|--help) usage; exit 0 ;;
         -n|--dry-run) DRY_RUN=1 ;;
-        *) echo "ds4-start: unknown argument '$arg'" >&2; usage >&2; exit 2 ;;
+        -*) echo "ds4-start: unknown argument '$arg'" >&2; usage >&2; exit 2 ;;
+        *)
+            if [ -n "$MODEL_ARG" ]; then
+                echo "ds4-start: only one MODEL argument is allowed" >&2; exit 2
+            fi
+            MODEL_ARG=$arg
+            ;;
     esac
 done
 
@@ -52,7 +70,7 @@ DS4_SETTINGS='DS4_ROOT DS4_MODEL DS4_CTX DS4_MAX_TOKENS DS4_HOST DS4_PORT
 DS4_DSPARK DS4_DSPARK_FILE DS4_DSPARK_CONFIDENCE DS4_MTP_EXACT_SAMPLING
 DS4_KV_ROOT DS4_KV_DIR DS4_KV_DISK_MB DS4_KV_COLD_MAX_TOKENS DS4_WARM
 DS4_POWER DS4_BATCHED_SESSION DS4_CORS DS4_REBUILD DS4_MAKE_TARGET
-DS4_CANDIDATES'
+DS4_CANDIDATES DS4_MTP DS4_VISION DS4_QWEN4_YARN_FACTOR'
 
 DS4_CONFIG=${DS4_CONFIG:-"${XDG_CONFIG_HOME:-$HOME/.config}/ds4/config"}
 if [ -r "$DS4_CONFIG" ]; then
@@ -64,6 +82,9 @@ if [ -r "$DS4_CONFIG" ]; then
         eval "[ -n \"\${__had_$v-}\" ] && $v=\$__env_$v" || true
     done
 fi
+
+# Read by ds4-server itself, so a plain assignment in the config must reach it.
+[ -n "${DS4_QWEN4_YARN_FACTOR-}" ] && export DS4_QWEN4_YARN_FACTOR
 
 # ---- Locate the checkout ----------------------------------------------------
 
@@ -167,6 +188,12 @@ esac
 #   ds4f-q4      4-bit routed experts, ~153 GB. Needs 256 GB+.
 #
 # All three are the 2026-07-31 ("0731") DeepSeek V4 Flash checkpoint.
+#
+#   qwen38-q2    Qwen3.8 Flash Next, 41.73 GiB resident. For 64 GB machines.
+#   qwen38-q4k   Qwen3.8 Flash Next, 69.74 GiB resident. Fine on 128 GB.
+#
+# Both Qwen files also carry a 95.37 GiB n-gram table that is read from disk and
+# never loaded, so the download is far larger than the memory it needs.
 DS4_MODEL=${DS4_MODEL:-ds4f-q2}
 
 # Context window. 393216 is the threshold where ds4-server honours Think Max
@@ -189,6 +216,12 @@ DS4_MODEL=${DS4_MODEL:-ds4f-q2}
 # So ~92.7 GiB of 128 GiB, leaving roughly 35 GiB for the OS and your editor.
 # Smaller machines get a smaller default, scaled off total memory; override it
 # in the config file if you know better for a given box.
+#
+# Qwen3.8's native context is 262144. Past that the server needs static YaRN
+# (DS4_QWEN4_YARN_FACTOR=2 or 4) or later tokens come out wrong, so the default
+# is capped there for Qwen unless YaRN is on. The cap is applied once the model
+# is known, further down.
+QWEN_NATIVE_CTX=262144
 default_ctx() {
     [ -n "$MEM_MB" ] || { echo 131072; return; }
     if   [ "$MEM_MB" -ge 122880 ]; then echo 393216   # 120 GiB+ (128 GB class)
@@ -198,7 +231,7 @@ default_ctx() {
     else echo 32768
     fi
 }
-DS4_CTX=${DS4_CTX:-$(default_ctx)}
+DS4_CTX=${DS4_CTX:-}
 
 # Default max output tokens for clients that omit a limit. Flash can produce
 # very long replies; the server still stops when the context window is full.
@@ -245,6 +278,11 @@ DS4_DSPARK_FILE=${DS4_DSPARK_FILE:-"$ROOT/gguf/DeepSeek-V4-Flash-DSpark-support-
 # below). 0 forces fixed five-token blocks (diagnostic).
 DS4_DSPARK_CONFIDENCE=${DS4_DSPARK_CONFIDENCE:-}
 
+# Qwen3.8 Flash Next has its MTP draft head inside the main GGUF, so it needs no
+# support file, only --mtp. DS4_DSPARK does not apply to Qwen; this does. The
+# opportunistic/exact sampling choice below works the same way for both.
+DS4_MTP=${DS4_MTP:-1}
+
 # Set to 1 to trade the opportunistic speedup for sampling fidelity. Exact mode
 # stops committing target-matching greedy drafts directly: each proposal is
 # accepted with its target probability and rejections resample from what is
@@ -284,8 +322,13 @@ DS4_WARM=${DS4_WARM:-1}
 DS4_POWER=${DS4_POWER:-}
 
 # Resident batched sessions, for serving several conversations at once. Leave
-# empty for single-user agent work: batching disables speculative decoding.
+# empty for single-user agent work: batching disables DSpark. Qwen on Metal is
+# the exception and keeps MTP across the batch.
 DS4_BATCHED_SESSION=${DS4_BATCHED_SESSION:-}
+
+# Vision encoder (mmproj GGUF) for image input: a path, or a file name under
+# ./gguf. It must match the model family. Empty means no vision.
+DS4_VISION=${DS4_VISION:-}
 
 # Set DS4_CORS=1 to add CORS headers for browser-based clients.
 DS4_CORS=${DS4_CORS:-}
@@ -337,18 +380,35 @@ fi
 
 # ---- Download model if missing ----------------------------------------------
 
-if [ ! -e "$ROOT/ds4flash.gguf" ]; then
+if [ -z "$MODEL_ARG" ] && [ ! -e "$ROOT/ds4flash.gguf" ]; then
     echo ">> Model not found. Downloading '$DS4_MODEL' (this is large, tens of GB)."
     echo "   Re-running is safe; downloads resume."
     "$ROOT/download_model.sh" "$DS4_MODEL"
 fi
 
-# Resolve the symlink target so we can sanity-check the file actually exists.
-MODEL_PATH=$(cd "$ROOT" && readlink ds4flash.gguf 2>/dev/null || echo "$ROOT/ds4flash.gguf")
-case "$MODEL_PATH" in
-    /*) ;;
-    *) MODEL_PATH="$ROOT/$MODEL_PATH" ;;
-esac
+# Resolve the model for this run: the MODEL argument when given, otherwise the
+# ./ds4flash.gguf link. The argument never changes the link.
+resolve_model_arg() {
+    if [ -f "$1" ]; then abspath "$(dirname "$1")"/"$(basename "$1")"; return 0; fi
+    if [ -f "$ROOT/gguf/$1" ]; then echo "$ROOT/gguf/$1"; return 0; fi
+    matches=$(ls "$ROOT"/gguf/*.gguf 2>/dev/null | grep -F -- "$1" || true)
+    case "$(printf '%s\n' "$matches" | grep -c .)" in
+        1) echo "$matches"; return 0 ;;
+        0) echo "!! No GGUF under $ROOT/gguf matches '$1'." >&2 ;;
+        *) echo "!! '$1' matches more than one GGUF:" >&2
+           printf '%s\n' "$matches" | sed 's/^/   /' >&2 ;;
+    esac
+    return 1
+}
+if [ -n "$MODEL_ARG" ]; then
+    MODEL_PATH=$(resolve_model_arg "$MODEL_ARG") || exit 1
+else
+    MODEL_PATH=$(cd "$ROOT" && readlink ds4flash.gguf 2>/dev/null || echo "$ROOT/ds4flash.gguf")
+    case "$MODEL_PATH" in
+        /*) ;;
+        *) MODEL_PATH="$ROOT/$MODEL_PATH" ;;
+    esac
+fi
 if [ ! -s "$MODEL_PATH" ]; then
     echo "!! Model file missing or empty: $MODEL_PATH" >&2
     echo "   Run: $ROOT/download_model.sh $DS4_MODEL" >&2
@@ -358,21 +418,55 @@ fi
 MODEL_NAME=$(basename "$MODEL_PATH")
 MODEL_TAG=$(basename "$MODEL_NAME" .gguf)
 
+# Qwen3.8 Flash Next GGUFs use the qwen4exp architecture. Check the header
+# rather than the file name so renamed or third-party conversions still match.
+IS_QWEN=0
+if head -c 1048576 "$MODEL_PATH" 2>/dev/null | LC_ALL=C grep -a -q 'qwen4exp'; then
+    IS_QWEN=1
+fi
+
+# ---- Context ----------------------------------------------------------------
+
+if [ -z "$DS4_CTX" ]; then
+    DS4_CTX=$(default_ctx)
+    if [ "$IS_QWEN" = "1" ] && [ -z "${DS4_QWEN4_YARN_FACTOR-}" ] &&
+       [ "$DS4_CTX" -gt "$QWEN_NATIVE_CTX" ]; then
+        DS4_CTX=$QWEN_NATIVE_CTX
+    fi
+elif [ "$IS_QWEN" = "1" ] && [ -z "${DS4_QWEN4_YARN_FACTOR-}" ] &&
+     [ "$DS4_CTX" -gt "$QWEN_NATIVE_CTX" ]; then
+    echo "!! DS4_CTX=$DS4_CTX exceeds Qwen's native $QWEN_NATIVE_CTX tokens." >&2
+    echo "   Prompts past that need DS4_QWEN4_YARN_FACTOR=2 (or 4)." >&2
+fi
+
+# ---- Memory check -----------------------------------------------------------
+
 # On unified memory the weights and the OS share one pool, so a model that is
 # larger than the machine will thrash rather than fail cleanly. Warn early.
+# Qwen's original BF16 n-gram table (95.37 GiB) is read from disk and never
+# loaded, so it does not count against memory.
+QWEN_NGRAM_MB=97659
 if [ "$UNIFIED" = "1" ] && [ -n "$MEM_MB" ]; then
     MODEL_MB=$(( $(wc -c < "$MODEL_PATH") / 1048576 ))
+    SMALLER=ds4f-q2
+    if [ "$IS_QWEN" = "1" ]; then
+        MODEL_MB=$((MODEL_MB - QWEN_NGRAM_MB))
+        SMALLER=qwen38-q2
+    fi
     if [ "$((MODEL_MB + 12288))" -gt "$MEM_MB" ]; then
-        echo "!! $MODEL_NAME is ${MODEL_MB} MiB on a ${MEM_MB} MiB machine." >&2
-        echo "   Expect heavy paging. A smaller quant (DS4_MODEL=ds4f-q2) or" >&2
+        echo "!! $MODEL_NAME needs about ${MODEL_MB} MiB on a ${MEM_MB} MiB machine." >&2
+        echo "   Expect heavy paging. A smaller quant ($SMALLER) or" >&2
         echo "   --ssd-streaming would fit better." >&2
     fi
 fi
 
-# ---- DSpark support model ---------------------------------------------------
+# ---- Speculative decoding ---------------------------------------------------
 
 DSPARK_ACTIVE=0
-if [ "$DS4_DSPARK" = "1" ]; then
+MTP_ACTIVE=0
+if [ "$IS_QWEN" = "1" ]; then
+    [ "$DS4_MTP" = "1" ] && MTP_ACTIVE=1
+elif [ "$DS4_DSPARK" = "1" ]; then
     case "$MODEL_NAME" in
         *0731*)
             if [ ! -s "$DS4_DSPARK_FILE" ]; then
@@ -398,6 +492,21 @@ if [ "$DSPARK_ACTIVE" = "1" ] && [ -n "$DS4_BATCHED_SESSION" ]; then
     echo "   Leaving DSpark loaded but inactive for decode."
 fi
 
+# ---- Vision encoder ---------------------------------------------------------
+
+VISION_PATH=
+if [ -n "$DS4_VISION" ]; then
+    if [ -f "$DS4_VISION" ]; then
+        VISION_PATH=$(abspath "$(dirname "$DS4_VISION")")/$(basename "$DS4_VISION")
+    elif [ -f "$ROOT/gguf/$DS4_VISION" ]; then
+        VISION_PATH=$ROOT/gguf/$DS4_VISION
+    else
+        echo "!! Vision encoder not found: $DS4_VISION" >&2
+        [ "$IS_QWEN" = "1" ] && echo "   Run: $ROOT/download_model.sh qwen38-vision" >&2
+        exit 1
+    fi
+fi
+
 # ---- KV cache directory -----------------------------------------------------
 
 DS4_KV_DIR=${DS4_KV_DIR:-"$DS4_KV_ROOT/$MODEL_TAG"}
@@ -418,15 +527,19 @@ set -- \
     --kv-cache-reject-different-quant
 
 if [ "$DSPARK_ACTIVE" = "1" ]; then
-    set -- "$@" --mtp "$DS4_DSPARK_FILE"
+    set -- "$@" --mtp-model "$DS4_DSPARK_FILE"
     if [ -n "$DS4_DSPARK_CONFIDENCE" ]; then
         set -- "$@" --dspark-confidence "$DS4_DSPARK_CONFIDENCE"
     else
         set -- "$@" --dspark
     fi
+fi
+[ "$MTP_ACTIVE" = "1" ] && set -- "$@" --mtp
+if [ "$DSPARK_ACTIVE" = "1" ] || [ "$MTP_ACTIVE" = "1" ]; then
     [ "$DS4_MTP_EXACT_SAMPLING" = "1" ] && set -- "$@" --mtp-exact-sampling
 fi
 
+[ -n "$VISION_PATH" ] && set -- "$@" --vision "$VISION_PATH"
 [ "$DS4_WARM" = "1" ] && set -- "$@" --warm-weights
 [ -n "$DS4_POWER" ] && set -- "$@" --power "$DS4_POWER"
 [ -n "$DS4_BATCHED_SESSION" ] && set -- "$@" --batched-session "$DS4_BATCHED_SESSION"
@@ -438,14 +551,18 @@ echo "   model : $MODEL_NAME"
 echo "   listen: http://$DS4_HOST:$DS4_PORT  (OpenAI / Anthropic / Responses compatible)"
 echo "   ctx   : $DS4_CTX tokens"
 echo "   kvdisk: $DS4_KV_DIR (${DS4_KV_DISK_MB} MB)"
-if [ "$DSPARK_ACTIVE" = "1" ]; then
+[ -n "$VISION_PATH" ] && echo "   vision: $(basename "$VISION_PATH")"
+SPEC=
+[ "$DSPARK_ACTIVE" = "1" ] && SPEC=dspark
+[ "$MTP_ACTIVE" = "1" ] && SPEC=mtp
+if [ -n "$SPEC" ]; then
     if [ "$DS4_MTP_EXACT_SAMPLING" = "1" ]; then
-        echo "   dspark: on (exact sampling, ordinary target distribution)"
+        echo "   spec  : $SPEC (exact sampling, ordinary target distribution)"
     else
-        echo "   dspark: on (opportunistic, all temperatures)"
+        echo "   spec  : $SPEC (opportunistic, all temperatures)"
     fi
 else
-    echo "   dspark: off"
+    echo "   spec  : off"
 fi
 echo
 
