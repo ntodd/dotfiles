@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{RFC TITLE}}, explained</title>
+<script>
+  (() => { const t = localStorage.getItem('rfc-explainer-theme'); if (t) document.documentElement.dataset.theme = t; })();
+</script>
+<style>
+  /* ---------- Tokens. Never hardcode colors below this block; dark mode depends on it. ---------- */
+  :root {
+    --bg: #faf8f4; --panel: #ffffff; --ink: #1f2328; --muted: #5f6670; --line: #e4e0d8;
+    --accent: #c2410c; --accent-soft: #fff1e8;
+    --blue: #1d4ed8; --blue-soft: #e8efff;
+    --green: #15803d; --green-soft: #e7f6ec;
+    --red: #b91c1c; --red-soft: #fdecec;
+    --amber: #a16207; --amber-soft: #fdf6dc;
+    --violet: #6d28d9; --violet-soft: #f1ebff;
+    --code-bg: #f1ede5; --pre-bg: #1f2328; --pre-ink: #e6e1d6;
+    --faint: #a8a29a; --lede: #3a3f45; --subtle: #f4f1ea; --subtle-2: #ece8df;
+    --sunken: #fcfbf8; --sunken-cool: #f5f7fb; --msg-cool: #e9edf3; --dash: #b3ab9f; --on-ink: #ffffff;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    color-scheme: light;
+  }
+  :root[data-theme=dark] {
+    --bg: #15171a; --panel: #1d2024; --ink: #e8e4dc; --muted: #9aa1a9; --line: #2f3338;
+    --accent: #f08a4b; --accent-soft: #3a2418;
+    --blue: #7aa2ff; --blue-soft: #1c2640;
+    --green: #5fcf86; --green-soft: #17301f;
+    --red: #f27b7b; --red-soft: #3a1d1d;
+    --amber: #e6b84f; --amber-soft: #352b14;
+    --violet: #b496ff; --violet-soft: #2a2140;
+    --code-bg: #2a2e33; --pre-bg: #0e1012; --pre-ink: #e6e1d6;
+    --faint: #6b7178; --lede: #c9c4bb; --subtle: #262a2f; --subtle-2: #30343a;
+    --sunken: #181b1e; --sunken-cool: #171b22; --msg-cool: #232a35; --dash: #4a4f56; --on-ink: #15171a;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) {
+      --bg: #15171a; --panel: #1d2024; --ink: #e8e4dc; --muted: #9aa1a9; --line: #2f3338;
+      --accent: #f08a4b; --accent-soft: #3a2418;
+      --blue: #7aa2ff; --blue-soft: #1c2640;
+      --green: #5fcf86; --green-soft: #17301f;
+      --red: #f27b7b; --red-soft: #3a1d1d;
+      --amber: #e6b84f; --amber-soft: #352b14;
+      --violet: #b496ff; --violet-soft: #2a2140;
+      --code-bg: #2a2e33; --pre-bg: #0e1012; --pre-ink: #e6e1d6;
+      --faint: #6b7178; --lede: #c9c4bb; --subtle: #262a2f; --subtle-2: #30343a;
+      --sunken: #181b1e; --sunken-cool: #171b22; --msg-cool: #232a35; --dash: #4a4f56; --on-ink: #15171a;
+      color-scheme: dark;
+    }
+  }
+
+  /* ---------- Base ---------- */
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans); }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; color: inherit; }
+  a { color: var(--blue); }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0; z-index: 10; }
+
+  .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; gap: 40px; padding: 0 24px; }
+  nav.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; font-size: 14px; }
+  nav.toc .brand { font-weight: 700; margin-bottom: 14px; color: var(--accent); letter-spacing: .02em; text-transform: uppercase; font-size: 12px; }
+  nav.toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid transparent; }
+  nav.toc a.active { color: var(--ink); border-left-color: var(--accent); background: var(--accent-soft); }
+  nav.toc a span { display: inline-block; width: 22px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  main { padding: 32px 0 120px; min-width: 0; }
+
+  header.hero { padding: 40px 0 24px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+  .hero-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .kicker { color: var(--accent); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+  h1 { font-size: 40px; line-height: 1.15; margin: 8px 0 14px; letter-spacing: -0.02em; }
+  .lede { font-size: 19px; color: var(--lede); max-width: 60ch; }
+  .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--subtle-2); color: var(--muted); }
+
+  section { padding: 36px 0 12px; border-bottom: 1px solid var(--line); }
+  section > h2 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  section > h2 small { display: block; font-size: 13px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  h3 { font-size: 19px; margin: 26px 0 8px; }
+  p { max-width: 70ch; }
+  .note-small { font-size: 14px; color: var(--muted); }
+
+  /* ---------- Static components ---------- */
+  .callout { --c: var(--accent); border: 1px solid color-mix(in srgb, var(--c) 25%, transparent); background: var(--accent-soft); padding: 12px 16px; border-radius: 8px; margin: 18px 0; max-width: 72ch; }
+  .callout.blue { --c: var(--blue); background: var(--blue-soft); }
+  .callout.green { --c: var(--green); background: var(--green-soft); }
+  .callout.red { --c: var(--red); background: var(--red-soft); }
+  .callout strong:first-child { display: block; margin-bottom: 2px; color: var(--c); }
+
+  .rnote { border: 1px dashed var(--dash); background: var(--panel); padding: 12px 16px; border-radius: 8px; margin: 18px 0; max-width: 72ch; font-size: 15px; scroll-margin-top: 20px; }
+  .rnote .rlabel { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+  .rnote p { margin: 6px 0 0; }
+  .rnote:target { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
+  .sev { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-right: 6px; text-transform: uppercase; }
+  .sev.hi { background: var(--red-soft); color: var(--red); }
+  .sev.md { background: var(--amber-soft); color: var(--amber); }
+  .sev.lo { background: var(--subtle-2); color: var(--muted); }
+  #review-index li { margin-bottom: 8px; }
+  #review-index .where { color: var(--muted); font-size: 14px; }
+
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .g4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card h4 { margin: 0 0 6px; font-size: 16px; }
+  .card p { margin: 6px 0; font-size: 15px; }
+  .card .tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); }
+  .card .tag.blue { color: var(--blue); } .card .tag.green { color: var(--green); } .card .tag.violet { color: var(--violet); } .card .tag.red { color: var(--red); }
+
+  .story { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-top: 18px; }
+  .story .card { position: relative; padding-top: 34px; }
+  .story .num { position: absolute; top: 10px; left: 16px; font-size: 12px; font-weight: 700; color: var(--accent); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: var(--subtle); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  .yes { color: var(--green); font-weight: 700; }
+  .no { color: var(--red); font-weight: 700; }
+  .maybe { color: var(--amber); font-weight: 700; }
+
+  .flow { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; margin-top: 12px; }
+  .flow .step { flex: 1 1 150px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .flow .step b { display: block; font-size: 13px; color: var(--accent); }
+  .flow .arrow { align-self: center; color: var(--dash); font-size: 20px; }
+
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details[open] summary { margin-bottom: 6px; }
+
+  button { font: inherit; color: var(--ink); cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); padding: 7px 14px; }
+  button:hover { border-color: var(--dash); }
+  button.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+  button.chip { border-radius: 999px; font-size: 14px; }
+  button.chip.on { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+  button:disabled { opacity: .45; cursor: default; }
+  .theme-toggle { margin-top: 18px; font-size: 13px; padding: 5px 10px; }
+  .hero-top .theme-toggle { margin: 0; display: none; }
+
+  /* ---------- Widget: scrubber ---------- */
+  .w-box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 16px; }
+  .scrub-phases { display: grid; gap: 4px; margin-bottom: 10px; }
+  .scrub-phase { text-align: center; font-size: 12px; padding: 8px 4px; border-radius: 6px; background: var(--subtle); color: var(--muted); cursor: pointer; user-select: none; }
+  .scrub-phase.on { background: var(--ink); color: var(--on-ink); }
+  .scrub-phase b { display: block; font-size: 13px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .scrub-body { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; margin-top: 12px; }
+  .scrub-body.solo { grid-template-columns: 1fr; }
+  .facts div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--line); padding: 6px 0; font-size: 14px; }
+  .facts div span:first-child { color: var(--muted); }
+  .preview { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--sunken); min-height: 200px; font-size: 13px; }
+  .preview .bar { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .preview .row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+  .badge { font-size: 11px; padding: 3px 9px; border-radius: 6px; font-weight: 600; background: var(--subtle-2); color: var(--muted); }
+  .badge.ink { background: var(--ink); color: var(--on-ink); }
+  .badge.green { background: var(--green-soft); color: var(--green); }
+  .badge.red { background: var(--red-soft); color: var(--red); }
+  .badge.amber { background: var(--amber-soft); color: var(--amber); }
+  .banner { margin: 6px 0 10px; padding: 6px 8px; border-radius: 6px; font-weight: 600; background: var(--subtle-2); color: var(--muted); }
+  .banner.amber { background: var(--amber-soft); color: var(--amber); }
+  .banner.green { background: var(--green-soft); color: var(--green); }
+  .banner.red { background: var(--red-soft); color: var(--red); }
+  .empty-state { display: grid; place-items: center; min-height: 170px; color: var(--muted); text-align: center; }
+  .empty-state b { font-size: 34px; color: var(--dash); display: block; }
+
+  /* ---------- Widget: sim ---------- */
+  .sim-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .lanes { display: grid; gap: 10px; margin-top: 16px; }
+  .lane { background: var(--sunken); border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-height: 220px; }
+  .lane h5 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .lane.system { background: var(--sunken-cool); }
+  .msg { font-size: 13px; padding: 7px 9px; border-radius: 7px; margin-bottom: 6px; animation: pop .25s ease-out; }
+  .msg.k0 { background: var(--blue-soft); }
+  .msg.k1 { background: var(--violet-soft); }
+  .msg.k2 { background: var(--subtle); }
+  .msg.code { background: var(--msg-cool); font-family: var(--mono); font-size: 12px; }
+  .msg.ok { background: var(--green-soft); color: var(--green); font-weight: 600; }
+  .msg.err { background: var(--red-soft); color: var(--red); font-weight: 600; }
+  .msg.wait { background: var(--amber-soft); color: var(--amber); }
+  @keyframes pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .msg { animation: none; } html { scroll-behavior: auto; } }
+  .narration { margin-top: 12px; padding: 10px 14px; background: var(--accent-soft); border-radius: 8px; min-height: 48px; font-size: 15px; }
+  .sim-state { display: grid; gap: 10px; margin-top: 12px; }
+  .sim-state .card { font-size: 13px; }
+  .sim-state .sub { color: var(--muted); }
+  .entry { font-family: var(--mono); font-size: 12px; padding: 3px 6px; border-radius: 4px; margin-top: 4px; background: var(--subtle); }
+  .entry.pending { background: var(--amber-soft); color: var(--amber); }
+  .entry.done { background: var(--green-soft); color: var(--green); }
+  .entry.gone { background: var(--red-soft); color: var(--red); text-decoration: line-through; }
+
+  /* ---------- Widget: schema ---------- */
+  .erd { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin-top: 14px; }
+  .tbl { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .tbl h4 { margin: 0; padding: 8px 12px; background: var(--ink); color: var(--on-ink); font-family: var(--mono); font-size: 14px; }
+  .col { display: flex; justify-content: space-between; gap: 10px; padding: 5px 12px; font-size: 13px; border-top: 1px solid var(--line); cursor: help; }
+  .col:hover, .col:focus { background: var(--accent-soft); outline: none; }
+  .col span:first-child { font-family: var(--mono); }
+  .col span:last-child { color: var(--muted); font-size: 12px; }
+  .col.key span:first-child { color: var(--accent); font-weight: 600; }
+  .colnote { margin-top: 10px; min-height: 44px; font-size: 14px; padding: 10px 14px; border-radius: 8px; background: var(--subtle); }
+
+  /* ---------- Widget: quiz ---------- */
+  .q { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 10px 0; }
+  .q .opts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .q .fb { margin-top: 8px; font-size: 14px; display: none; }
+  .q .fb.show { display: block; }
+  .q button.right { background: var(--green-soft); border-color: var(--green); }
+  .q button.wrong { background: var(--red-soft); border-color: var(--red); }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { display: none; }
+    .hero-top .theme-toggle { display: inline-block; }
+    .g2, .g3, .g4, .story, .erd, .scrub-body, .sim-state { grid-template-columns: 1fr !important; }
+    .lanes { grid-template-columns: 1fr !important; }
+    .scrub-phases { grid-template-columns: repeat(3, 1fr) !important; }
+    h1 { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc" id="toc">
+  <div class="brand">RFC walkthrough</div>
+  <!-- Links are generated from <section id> + <h2>. -->
+  <div id="toc-links"></div>
+  <button class="theme-toggle" data-theme-toggle>Dark mode</button>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="hero-top"><div class="kicker">{{PR #N · path/to/rfc.md}}</div><button class="theme-toggle" data-theme-toggle>Dark mode</button></div>
+  <h1>{{Title}}, walked through</h1>
+  <p class="lede">{{One paragraph: how long the RFC is, what this page covers and in what order, and that the interactive parts are for the tricky bits.}}</p>
+  <div class="meta">
+    <span class="pill">Status: {{Proposed}}</span>
+    <span class="pill">{{Revision / date}}</span>
+    <span class="pill">{{Scope fact}}</span>
+  </div>
+</header>
+
+<!--
+  SECTION PATTERN. Each <section> needs an id and an <h2> whose <small> holds the number.
+  Optional data-toc sets a shorter nav label than the h2.
+  The nav, scroll highlight, and reviewer-note index read these automatically.
+-->
+<section id="story" data-toc="The story">
+  <h2><small>01</small>The story in three beats</h2>
+  <p>{{The problem today, in plain terms.}}</p>
+  <div class="story">
+    <div class="card"><span class="num">BEFORE</span><h4>{{Beat}}</h4><p>{{...}}</p></div>
+    <div class="card"><span class="num">DURING</span><h4>{{Beat}}</h4><p>{{...}}</p></div>
+    <div class="card"><span class="num">AFTER</span><h4>{{Beat}}</h4><p>{{...}}</p></div>
+  </div>
+  <div class="callout">
+    <strong>{{The rule that shapes everything}}</strong>
+    {{The one invariant the rest of the design serves.}}
+  </div>
+</section>
+
+<section id="lifecycle">
+  <h2><small>02</small>{{A thing's life}}</h2>
+  <p>{{What is stored vs. derived.}}</p>
+  <div data-widget="scrubber" data-key="lifecycle"></div>
+
+  <div class="rnote" id="rn-example" data-sev="md" data-label="gap">
+    <span class="rlabel">Reviewer note</span><span class="sev md">gap</span><b>{{Short title of the issue.}}</b>
+    <p>{{What the RFC says, what's wrong or missing, and what to do about it.}}</p>
+  </div>
+</section>
+
+<section id="core">
+  <h2><small>03</small>{{The core mechanism}}</h2>
+  <p>{{Explain the mechanism before showing it.}}</p>
+  <div data-widget="sim" data-key="core"></div>
+</section>
+
+<section id="model">
+  <h2><small>04</small>Data model</h2>
+  <p>Hover or focus a column for the RFC's note on it.</p>
+  <div data-widget="schema" data-key="model"></div>
+</section>
+
+<section id="roles">
+  <h2><small>05</small>Who can do what</h2>
+  <div data-widget="matrix" data-key="perms"></div>
+</section>
+
+<section id="why">
+  <h2><small>06</small>Roads not taken</h2>
+  <details><summary>{{Alternative}}</summary><p>{{Why it lost.}}</p></details>
+</section>
+
+<section id="quiz">
+  <h2><small>07</small>Check yourself</h2>
+  <div data-widget="quiz" data-key="main"></div>
+</section>
+
+<section id="review">
+  <h2><small>08</small>Reviewer notes</h2>
+  <p>My observations from reading the RFC closely, not part of the document. Each sits inline in the section it's about, in a dashed box; this list links to them in priority order.</p>
+  <ol id="review-index"></ol>
+  <!-- Notes with no natural home go here as normal .rnote blocks; the index includes them too. -->
+</section>
+</main>
+</div>
+
+<script>
+// =====================================================================
+// CONTENT CONFIG. Strings are inserted as HTML, so <code> and <b> work.
+// =====================================================================
+const EXPLAINER = {
+  scrubber: {
+    lifecycle: {
+      phases: [
+        { label: 'Draft', sub: 'any time', title: 'Draft', desc: '{{What this state means.}}',
+          facts: [['Stored status', 'draft'], ['Visible to users', 'No']],
+          preview: '<div class="empty-state"><div><b>404</b>Not visible yet.</div></div>' },
+        { label: 'Open', sub: 'opens_at →', title: 'Open', desc: '{{...}}',
+          facts: [['Stored status', 'published'], ['Visible to users', 'Yes']],
+          preview: '<div class="bar">/things/1</div><div class="row"><span>Item A</span><span class="badge ink">Act</span></div><div class="row"><span>Item B</span><span class="badge">Taken</span></div>' },
+        { label: 'Closed', sub: 'after closes_at', title: 'Closed', desc: '{{...}}',
+          facts: [['Stored status', 'closed'], ['Visible to users', 'Read-only']] },
+      ],
+    },
+  },
+  sim: {
+    core: {
+      // lanes: actor columns. Mark the shared system (DB, queue, service) with system: true.
+      // state: optional panels under the lanes (indexes, locks, queues, caches).
+      scenarios: [
+        { key: 'race', label: 'Two writers, same key',
+          lanes: [{ name: 'Client A' }, { name: 'Database', system: true }, { name: 'Client B' }],
+          state: [{ key: 'idx', label: 'unique_idx', sub: '(key)' }],
+          steps: [
+            { lane: 0, kind: 'k0', text: 'Submits write for key=1', say: 'Both clients submit at nearly the same time.' },
+            { lane: 2, kind: 'k1', text: 'Submits write for key=1' },
+            { lane: 1, kind: 'code', text: 'A: INSERT key=1', state: { idx: [['key=1 (A)', 'pending']] } },
+            { lane: 1, kind: 'wait', text: 'B waits on A', say: 'B blocks on the uncommitted entry.' },
+            { lane: 1, kind: 'code', text: 'A: COMMIT', state: { idx: [['key=1 (A)', 'done']] } },
+            { lane: 1, kind: 'err', text: 'B: unique violation → ROLLBACK' },
+            { lane: 0, kind: 'ok', text: 'Success' },
+            { lane: 2, kind: 'err', text: 'Already taken', say: 'Exactly one winner.' },
+          ] },
+      ],
+    },
+  },
+  schema: {
+    model: {
+      tables: [
+        { name: 'things', cols: [
+          ['id', 'uuid', 'Primary key.', true],
+          ['status', 'enum', 'draft | published | closed'],
+        ] },
+      ],
+    },
+  },
+  matrix: {
+    perms: {
+      personas: [{ key: 'user', label: 'User' }, { key: 'admin', label: 'Admin' }],
+      // Cell values: a legend key, or any HTML string.
+      legend: { yes: '<span class="yes">Yes</span>', no: '<span class="no">No</span>', r404: '<span class="no">404</span>' },
+      rows: [
+        { label: 'View /things', values: { user: 'yes', admin: 'yes' } },
+        { label: 'Edit /admin/things', values: { user: 'r404', admin: 'yes' } },
+      ],
+    },
+  },
+  custom: {
+    // demo: (el, { h }) => { el.append(h('div', 'w-box', 'Custom widget')); },
+  },
+  quiz: {
+    main: [
+      { q: '{{Question that targets a likely misconception}}', options: ['A', 'B', 'C'], answer: 1, explain: '{{Why, citing the mechanism.}}' },
+    ],
+  },
+};
+
+// =====================================================================
+// ENGINE. Content goes in EXPLAINER and the HTML above; this part should not need edits.
+// =====================================================================
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+
+  // Theme
+  const current = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const sync = () => $$('[data-theme-toggle]').forEach(b => b.textContent = current() === 'dark' ? 'Light mode' : 'Dark mode');
+  $$('[data-theme-toggle]').forEach(b => b.onclick = () => {
+    const next = current() === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('rfc-explainer-theme', next);
+    sync();
+  });
+  sync();
+
+  // TOC + progress
+  const sections = $$('main > section[id]');
+  const tocLinks = $('#toc-links');
+  sections.forEach(s => {
+    const h2 = $('h2', s); if (!h2) return;
+    const num = $('small', h2)?.textContent || '';
+    const title = s.dataset.toc || [...h2.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
+    const a = h('a', null, `<span>${num}</span>${title}`); a.href = '#' + s.id; tocLinks.appendChild(a);
+  });
+  const links = $$('a', tocLinks);
+  const onScroll = () => {
+    const d = document.documentElement;
+    $('#progress').style.width = (d.scrollTop / Math.max(1, d.scrollHeight - d.clientHeight) * 100) + '%';
+    let idx = 0; sections.forEach((s, i) => { if (s.getBoundingClientRect().top < 140) idx = i; });
+    links.forEach((a, i) => a.classList.toggle('active', i === idx));
+  };
+  addEventListener('scroll', onScroll); onScroll();
+
+  // Scrubber
+  function scrubber(el, cfg) {
+    const box = h('div', 'w-box');
+    const phases = h('div', 'scrub-phases'); phases.style.gridTemplateColumns = `repeat(${cfg.phases.length}, 1fr)`;
+    const range = h('input'); Object.assign(range, { type: 'range', min: 0, max: cfg.phases.length - 1, value: 0, step: 1 });
+    range.setAttribute('aria-label', 'Phase');
+    const hasPreview = cfg.phases.some(p => p.preview);
+    const body = h('div', 'scrub-body' + (hasPreview ? '' : ' solo'));
+    const left = h('div'); const title = h('h3'); title.style.marginTop = '4px';
+    const desc = h('p'); desc.style.cssText = 'font-size:15px;margin-top:0'; const facts = h('div', 'facts');
+    left.append(title, desc, facts); body.append(left);
+    const preview = h('div', 'preview'); if (hasPreview) body.append(preview);
+    cfg.phases.forEach((p, i) => { const d = h('div', 'scrub-phase', `<b>${p.label}</b>${p.sub || ''}`); d.onclick = () => { range.value = i; render(); }; phases.append(d); });
+    function render() {
+      const i = +range.value, p = cfg.phases[i];
+      $$('.scrub-phase', phases).forEach((c, j) => c.classList.toggle('on', j === i));
+      title.innerHTML = p.title || p.label; desc.innerHTML = p.desc || '';
+      facts.innerHTML = (p.facts || []).map(f => `<div><span>${f[0]}</span><span>${f[1]}</span></div>`).join('');
+      preview.innerHTML = p.preview || '<div class="empty-state">No preview for this phase.</div>';
+    }
+    range.oninput = render; box.append(phases, range, body); el.append(box); render();
+  }
+
+  // Sequence simulator
+  function sim(el, cfg) {
+    const box = h('div', 'w-box');
+    const controls = h('div', 'sim-controls', '<strong style="font-size:14px;margin-right:6px">Scenario:</strong>');
+    const lanesEl = h('div', 'lanes'), stateEl = h('div', 'sim-state'), narr = h('div', 'narration');
+    const reset = h('button', null, 'Reset'), next = h('button', 'primary', 'Next step →');
+    let scn = cfg.scenarios[0], step = 0, laneEls = [], stateEls = {};
+    cfg.scenarios.forEach((s, i) => {
+      const b = h('button', 'chip' + (i ? '' : ' on'), s.label); b.dataset.scn = s.key;
+      b.onclick = () => { $$('.chip', controls).forEach(x => x.classList.remove('on')); b.classList.add('on'); scn = s; build(); };
+      controls.append(b);
+    });
+    controls.append(h('span', null, '')); controls.lastChild.style.flex = '1';
+    controls.append(reset, next);
+    function build() {
+      step = 0; lanesEl.innerHTML = ''; stateEl.innerHTML = ''; laneEls = []; stateEls = {};
+      const weights = scn.lanes.map(l => l.system ? '1.25fr' : '1fr');
+      lanesEl.style.gridTemplateColumns = weights.join(' ');
+      scn.lanes.forEach(l => { const d = h('div', 'lane' + (l.system ? ' system' : ''), `<h5>${l.name}</h5>`); laneEls.push(d); lanesEl.append(d); });
+      (scn.state || []).forEach(st => {
+        const c = h('div', 'card', `<b>${st.label}</b> <span class="sub">${st.sub || ''}</span>`);
+        const list = h('div', null, '<div class="entry">empty</div>'); c.append(list); stateEls[st.key] = list; stateEl.append(c);
+      });
+      stateEl.style.gridTemplateColumns = `repeat(${Math.max(1, (scn.state || []).length)}, minmax(0,1fr))`;
+      stateEl.style.display = (scn.state || []).length ? 'grid' : 'none';
+      narr.innerHTML = scn.intro || 'Click <b>Next step</b>.'; next.disabled = false;
+    }
+    next.onclick = () => {
+      const s = scn.steps[step]; if (!s) return;
+      laneEls[s.lane].append(h('div', 'msg ' + (s.kind || 'k2'), s.text));
+      if (s.state) Object.entries(s.state).forEach(([k, entries]) => {
+        stateEls[k].innerHTML = entries.length ? entries.map(e => `<div class="entry ${e[1] || ''}">${e[0]}${e[1] ? ' · ' + e[1] : ''}</div>`).join('') : '<div class="entry">empty</div>';
+      });
+      if (s.say) narr.innerHTML = s.say;
+      step++; if (step >= scn.steps.length) next.disabled = true;
+    };
+    reset.onclick = build;
+    box.append(controls, lanesEl, stateEl, narr); el.append(box); build();
+  }
+
+  // Schema explorer
+  function schema(el, cfg) {
+    const erd = h('div', 'erd'), note = h('div', 'colnote', 'Hover or focus a column.');
+    cfg.tables.forEach(t => {
+      const box = h('div', 'tbl', `<h4>${t.name}</h4>`);
+      t.cols.forEach(c => {
+        const row = h('div', 'col' + (c[3] ? ' key' : ''), `<span>${c[0]}</span><span>${c[1]}</span>`);
+        row.tabIndex = 0;
+        const show = () => { note.innerHTML = `<code>${t.name}.${c[0]}</code> ${c[2] || '<span style="color:var(--muted)">No special notes.</span>'}`; };
+        row.onmouseenter = show; row.onfocus = show; box.append(row);
+      });
+      erd.append(box);
+    });
+    el.append(erd, note);
+  }
+
+  // Persona matrix
+  function matrix(el, cfg) {
+    const bar = h('div'); bar.style.cssText = 'display:flex;gap:8px;margin:12px 0;flex-wrap:wrap';
+    const table = h('table');
+    const render = key => {
+      table.innerHTML = '<tr><th>Page or action</th><th>Result</th></tr>' +
+        cfg.rows.map(r => { const v = r.values[key]; return `<tr><td>${r.label}</td><td>${(cfg.legend && cfg.legend[v]) || v || ''}</td></tr>`; }).join('');
+    };
+    cfg.personas.forEach((p, i) => {
+      const b = h('button', 'chip' + (i ? '' : ' on'), p.label);
+      b.onclick = () => { $$('.chip', bar).forEach(x => x.classList.remove('on')); b.classList.add('on'); render(p.key); };
+      bar.append(b);
+    });
+    el.append(bar, table); render(cfg.personas[0].key);
+  }
+
+  // Quiz
+  function quiz(el, items) {
+    items.forEach((it, qi) => {
+      const d = h('div', 'q', `<div><b>${qi + 1}.</b> ${it.q}</div>`);
+      const opts = h('div', 'opts'), fb = h('div', 'fb');
+      it.options.forEach((o, i) => {
+        const b = h('button', null, o);
+        b.onclick = () => {
+          $$('button', opts).forEach(x => x.classList.remove('right', 'wrong'));
+          b.classList.add(i === it.answer ? 'right' : 'wrong');
+          fb.innerHTML = (i === it.answer ? '<b style="color:var(--green)">Right.</b> ' : '<b style="color:var(--red)">Not quite.</b> ') + it.explain;
+          fb.classList.add('show');
+        };
+        opts.append(b);
+      });
+      d.append(opts, fb); el.append(d);
+    });
+  }
+
+  // Custom: EXPLAINER.custom[key] = (el, helpers) => { ... } for one-off demos.
+  const custom = (el, fn) => fn(el, { $, $$, h });
+
+  const widgets = { scrubber, sim, schema, matrix, quiz, custom };
+  $$('[data-widget]').forEach(el => {
+    const type = el.dataset.widget, cfg = (EXPLAINER[type] || {})[el.dataset.key];
+    if (!widgets[type] || !cfg) { el.innerHTML = `<div class="callout red"><strong>Missing widget config</strong>${type} / ${el.dataset.key}</div>`; return; }
+    widgets[type](el, cfg);
+  });
+
+  // Reviewer-note index, ordered by severity, linking to each inline note.
+  const idx = $('#review-index');
+  if (idx) {
+    const rank = { hi: 0, md: 1, lo: 2 };
+    $$('.rnote[id]').map(n => ({ n, r: rank[n.dataset.sev] ?? 3 }))
+      .sort((a, b) => a.r - b.r)
+      .forEach(({ n }) => {
+        const sec = n.closest('section');
+        const secTitle = sec ? sec.dataset.toc || [...$('h2', sec).childNodes].filter(x => x.nodeType === 3).map(x => x.textContent).join('').trim() : '';
+        const title = $('b', n)?.innerHTML || n.id;
+        const li = h('li', null, `<span class="sev ${n.dataset.sev || 'lo'}">${n.dataset.label || 'note'}</span><a href="#${n.id}">${title}</a> <span class="where">(${secTitle})</span>`);
+        idx.append(li);
+      });
+  }
+})();
+</script>
+</body>
+</html>

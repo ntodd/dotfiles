@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event sign-ups RFC, explained</title>
+<script>
+  (() => { const t = localStorage.getItem('rfc-explainer-theme'); if (t) document.documentElement.dataset.theme = t; })();
+</script>
+<style>
+  /* ---------- Tokens. Never hardcode colors below this block; dark mode depends on it. ---------- */
+  :root {
+    --bg: #faf8f4; --panel: #ffffff; --ink: #1f2328; --muted: #5f6670; --line: #e4e0d8;
+    --accent: #c2410c; --accent-soft: #fff1e8;
+    --blue: #1d4ed8; --blue-soft: #e8efff;
+    --green: #15803d; --green-soft: #e7f6ec;
+    --red: #b91c1c; --red-soft: #fdecec;
+    --amber: #a16207; --amber-soft: #fdf6dc;
+    --violet: #6d28d9; --violet-soft: #f1ebff;
+    --code-bg: #f1ede5; --pre-bg: #1f2328; --pre-ink: #e6e1d6;
+    --faint: #a8a29a; --lede: #3a3f45; --subtle: #f4f1ea; --subtle-2: #ece8df;
+    --sunken: #fcfbf8; --sunken-cool: #f5f7fb; --msg-cool: #e9edf3; --dash: #b3ab9f; --on-ink: #ffffff;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    color-scheme: light;
+  }
+  :root[data-theme=dark] {
+    --bg: #15171a; --panel: #1d2024; --ink: #e8e4dc; --muted: #9aa1a9; --line: #2f3338;
+    --accent: #f08a4b; --accent-soft: #3a2418;
+    --blue: #7aa2ff; --blue-soft: #1c2640;
+    --green: #5fcf86; --green-soft: #17301f;
+    --red: #f27b7b; --red-soft: #3a1d1d;
+    --amber: #e6b84f; --amber-soft: #352b14;
+    --violet: #b496ff; --violet-soft: #2a2140;
+    --code-bg: #2a2e33; --pre-bg: #0e1012; --pre-ink: #e6e1d6;
+    --faint: #6b7178; --lede: #c9c4bb; --subtle: #262a2f; --subtle-2: #30343a;
+    --sunken: #181b1e; --sunken-cool: #171b22; --msg-cool: #232a35; --dash: #4a4f56; --on-ink: #15171a;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) {
+      --bg: #15171a; --panel: #1d2024; --ink: #e8e4dc; --muted: #9aa1a9; --line: #2f3338;
+      --accent: #f08a4b; --accent-soft: #3a2418;
+      --blue: #7aa2ff; --blue-soft: #1c2640;
+      --green: #5fcf86; --green-soft: #17301f;
+      --red: #f27b7b; --red-soft: #3a1d1d;
+      --amber: #e6b84f; --amber-soft: #352b14;
+      --violet: #b496ff; --violet-soft: #2a2140;
+      --code-bg: #2a2e33; --pre-bg: #0e1012; --pre-ink: #e6e1d6;
+      --faint: #6b7178; --lede: #c9c4bb; --subtle: #262a2f; --subtle-2: #30343a;
+      --sunken: #181b1e; --sunken-cool: #171b22; --msg-cool: #232a35; --dash: #4a4f56; --on-ink: #15171a;
+      color-scheme: dark;
+    }
+  }
+
+  /* ---------- Base ---------- */
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans); }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; border-radius: 8px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; color: inherit; }
+  a { color: var(--blue); }
+  #progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--accent); width: 0; z-index: 10; }
+
+  .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); max-width: 1180px; margin: 0 auto; gap: 40px; padding: 0 24px; }
+  nav.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 32px 0; font-size: 14px; }
+  nav.toc .brand { font-weight: 700; margin-bottom: 14px; color: var(--accent); letter-spacing: .02em; text-transform: uppercase; font-size: 12px; }
+  nav.toc a { display: block; padding: 5px 10px; color: var(--muted); text-decoration: none; border-left: 2px solid transparent; }
+  nav.toc a.active { color: var(--ink); border-left-color: var(--accent); background: var(--accent-soft); }
+  nav.toc a span { display: inline-block; width: 22px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  main { padding: 32px 0 120px; min-width: 0; }
+
+  header.hero { padding: 40px 0 24px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
+  .hero-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .kicker { color: var(--accent); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+  h1 { font-size: 40px; line-height: 1.15; margin: 8px 0 14px; letter-spacing: -0.02em; }
+  .lede { font-size: 19px; color: var(--lede); max-width: 60ch; }
+  .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  .pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--subtle-2); color: var(--muted); }
+
+  section { padding: 36px 0 12px; border-bottom: 1px solid var(--line); }
+  section > h2 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  section > h2 small { display: block; font-size: 13px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  h3 { font-size: 19px; margin: 26px 0 8px; }
+  p { max-width: 70ch; }
+  .note-small { font-size: 14px; color: var(--muted); }
+
+  /* ---------- Static components ---------- */
+  .callout { --c: var(--accent); border: 1px solid color-mix(in srgb, var(--c) 25%, transparent); background: var(--accent-soft); padding: 12px 16px; border-radius: 8px; margin: 18px 0; max-width: 72ch; }
+  .callout.blue { --c: var(--blue); background: var(--blue-soft); }
+  .callout.green { --c: var(--green); background: var(--green-soft); }
+  .callout.red { --c: var(--red); background: var(--red-soft); }
+  .callout strong:first-child { display: block; margin-bottom: 2px; color: var(--c); }
+
+  .rnote { border: 1px dashed var(--dash); background: var(--panel); padding: 12px 16px; border-radius: 8px; margin: 18px 0; max-width: 72ch; font-size: 15px; scroll-margin-top: 20px; }
+  .rnote .rlabel { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+  .rnote p { margin: 6px 0 0; }
+  .rnote:target { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
+  .sev { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-right: 6px; text-transform: uppercase; }
+  .sev.hi { background: var(--red-soft); color: var(--red); }
+  .sev.md { background: var(--amber-soft); color: var(--amber); }
+  .sev.lo { background: var(--subtle-2); color: var(--muted); }
+  #review-index li { margin-bottom: 8px; }
+  #review-index .where { color: var(--muted); font-size: 14px; }
+
+  .grid { display: grid; gap: 14px; }
+  .g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .g4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card h4 { margin: 0 0 6px; font-size: 16px; }
+  .card p { margin: 6px 0; font-size: 15px; }
+  .card .tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--accent); }
+  .card .tag.blue { color: var(--blue); } .card .tag.green { color: var(--green); } .card .tag.violet { color: var(--violet); } .card .tag.red { color: var(--red); }
+
+  .story { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; margin-top: 18px; }
+  .story .card { position: relative; padding-top: 34px; }
+  .story .num { position: absolute; top: 10px; left: 16px; font-size: 12px; font-weight: 700; color: var(--accent); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: var(--subtle); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  tr:last-child td { border-bottom: 0; }
+  .yes { color: var(--green); font-weight: 700; }
+  .no { color: var(--red); font-weight: 700; }
+  .maybe { color: var(--amber); font-weight: 700; }
+
+  .flow { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; margin-top: 12px; }
+  .flow .step { flex: 1 1 150px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .flow .step b { display: block; font-size: 13px; color: var(--accent); }
+  .flow .arrow { align-self: center; color: var(--dash); font-size: 20px; }
+
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details[open] summary { margin-bottom: 6px; }
+
+  button { font: inherit; color: var(--ink); cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); padding: 7px 14px; }
+  button:hover { border-color: var(--dash); }
+  button.primary { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+  button.chip { border-radius: 999px; font-size: 14px; }
+  button.chip.on { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+  button:disabled { opacity: .45; cursor: default; }
+  .theme-toggle { margin-top: 18px; font-size: 13px; padding: 5px 10px; }
+  .hero-top .theme-toggle { margin: 0; display: none; }
+
+  /* ---------- Widget: scrubber ---------- */
+  .w-box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 16px; }
+  .scrub-phases { display: grid; gap: 4px; margin-bottom: 10px; }
+  .scrub-phase { text-align: center; font-size: 12px; padding: 8px 4px; border-radius: 6px; background: var(--subtle); color: var(--muted); cursor: pointer; user-select: none; }
+  .scrub-phase.on { background: var(--ink); color: var(--on-ink); }
+  .scrub-phase b { display: block; font-size: 13px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .scrub-body { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; margin-top: 12px; }
+  .scrub-body.solo { grid-template-columns: 1fr; }
+  .facts div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--line); padding: 6px 0; font-size: 14px; }
+  .facts div span:first-child { color: var(--muted); }
+  .preview { border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: var(--sunken); min-height: 200px; font-size: 13px; }
+  .preview .bar { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .preview .row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+  .badge { font-size: 11px; padding: 3px 9px; border-radius: 6px; font-weight: 600; background: var(--subtle-2); color: var(--muted); }
+  .badge.ink { background: var(--ink); color: var(--on-ink); }
+  .badge.green { background: var(--green-soft); color: var(--green); }
+  .badge.red { background: var(--red-soft); color: var(--red); }
+  .badge.amber { background: var(--amber-soft); color: var(--amber); }
+  .banner { margin: 6px 0 10px; padding: 6px 8px; border-radius: 6px; font-weight: 600; background: var(--subtle-2); color: var(--muted); }
+  .banner.amber { background: var(--amber-soft); color: var(--amber); }
+  .banner.green { background: var(--green-soft); color: var(--green); }
+  .banner.red { background: var(--red-soft); color: var(--red); }
+  .empty-state { display: grid; place-items: center; min-height: 170px; color: var(--muted); text-align: center; }
+  .empty-state b { font-size: 34px; color: var(--dash); display: block; }
+
+  /* ---------- Widget: sim ---------- */
+  .sim-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .lanes { display: grid; gap: 10px; margin-top: 16px; }
+  .lane { background: var(--sunken); border: 1px solid var(--line); border-radius: 10px; padding: 10px; min-height: 220px; }
+  .lane h5 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .lane.system { background: var(--sunken-cool); }
+  .msg { font-size: 13px; padding: 7px 9px; border-radius: 7px; margin-bottom: 6px; animation: pop .25s ease-out; }
+  .msg.k0 { background: var(--blue-soft); }
+  .msg.k1 { background: var(--violet-soft); }
+  .msg.k2 { background: var(--subtle); }
+  .msg.code { background: var(--msg-cool); font-family: var(--mono); font-size: 12px; }
+  .msg.ok { background: var(--green-soft); color: var(--green); font-weight: 600; }
+  .msg.err { background: var(--red-soft); color: var(--red); font-weight: 600; }
+  .msg.wait { background: var(--amber-soft); color: var(--amber); }
+  @keyframes pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .msg { animation: none; } html { scroll-behavior: auto; } }
+  .narration { margin-top: 12px; padding: 10px 14px; background: var(--accent-soft); border-radius: 8px; min-height: 48px; font-size: 15px; }
+  .sim-state { display: grid; gap: 10px; margin-top: 12px; }
+  .sim-state .card { font-size: 13px; }
+  .sim-state .sub { color: var(--muted); }
+  .entry { font-family: var(--mono); font-size: 12px; padding: 3px 6px; border-radius: 4px; margin-top: 4px; background: var(--subtle); }
+  .entry.pending { background: var(--amber-soft); color: var(--amber); }
+  .entry.done { background: var(--green-soft); color: var(--green); }
+  .entry.gone { background: var(--red-soft); color: var(--red); text-decoration: line-through; }
+
+  /* ---------- Widget: schema ---------- */
+  .erd { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; margin-top: 14px; }
+  .tbl { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .tbl h4 { margin: 0; padding: 8px 12px; background: var(--ink); color: var(--on-ink); font-family: var(--mono); font-size: 14px; }
+  .col { display: flex; justify-content: space-between; gap: 10px; padding: 5px 12px; font-size: 13px; border-top: 1px solid var(--line); cursor: help; }
+  .col:hover, .col:focus { background: var(--accent-soft); outline: none; }
+  .col span:first-child { font-family: var(--mono); }
+  .col span:last-child { color: var(--muted); font-size: 12px; }
+  .col.key span:first-child { color: var(--accent); font-weight: 600; }
+  .colnote { margin-top: 10px; min-height: 44px; font-size: 14px; padding: 10px 14px; border-radius: 8px; background: var(--subtle); }
+
+  /* ---------- Widget: quiz ---------- */
+  .q { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 10px 0; }
+  .q .opts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .q .fb { margin-top: 8px; font-size: 14px; display: none; }
+  .q .fb.show { display: block; }
+  .q button.right { background: var(--green-soft); border-color: var(--green); }
+  .q button.wrong { background: var(--red-soft); border-color: var(--red); }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { display: none; }
+    .hero-top .theme-toggle { display: inline-block; }
+    .g2, .g3, .g4, .story, .erd, .scrub-body, .sim-state { grid-template-columns: 1fr !important; }
+    .lanes { grid-template-columns: 1fr !important; }
+    .scrub-phases { grid-template-columns: repeat(3, 1fr) !important; }
+    h1 { font-size: 32px; }
+  }
+
+  /* ---------- Custom: presence demo ---------- */
+  .strip { display: flex; align-items: center; min-height: 44px; margin: 10px 0; }
+  .av { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--panel); margin-left: -8px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #ffffff; animation: pop .3s; }
+  .av:first-child { margin-left: 0; }
+  .more { margin-left: 10px; font-size: 13px; color: var(--muted); }
+  .stats { display: flex; gap: 18px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .stats b { color: var(--ink); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div class="layout">
+<nav class="toc" id="toc">
+  <div class="brand">RFC walkthrough</div>
+  <!-- Links are generated from <section id> + <h2>. -->
+  <div id="toc-links"></div>
+  <button class="theme-toggle" data-theme-toggle>Dark mode</button>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="hero-top"><div class="kicker">PR #491 · docs/specs/event-signups.md</div><button class="theme-toggle" data-theme-toggle>Dark mode</button></div>
+  <h1>Employee event sign-ups, walked through</h1>
+  <p class="lede">The RFC runs 680 lines. This page covers the same ground in the order you'd want to learn it: what problem it solves, how one event moves through time, how the database settles a race at 9:00:00, and what the admin side looks like. The interactive parts let you poke at the tricky bits.</p>
+  <div class="meta">
+    <span class="pill">Status: Proposed</span>
+    <span class="pill">Seventh draft, 2026-10-14</span>
+    <span class="pill">New context: Pulse.Signups</span>
+    <span class="pill">One new dep: nimble_csv</span>
+  </div>
+</header>
+
+<!-- 01 -->
+<section id="story" data-toc="The story">
+  <h2><small>01</small>The story in three beats</h2>
+  <p>Weigand hands out limited things to employees: Komets season tickets, TinCaps seats, volunteer spots. Today it's email plus a spreadsheet, and "first reply wins" is enforced by whoever happens to be reading the inbox. When something popular drops, a flood of replies arrives at once and the outcome is hard to defend.</p>
+  <div class="story">
+    <div class="card"><span class="num">BEFORE</span><h4>HR sets it up</h4><p>Creates "2026-2027 Komets Hockey", uploads a CSV of 36 game dates, picks the eligible roles, sets preview, open, and close times. Places holds on six games for executives.</p></div>
+    <div class="card"><span class="num">9:00:00</span><h4>Employees pick</h4><p>The page flips from countdown to open on its own. Each eligible employee claims one game. Postgres decides who got there first. Losers get "Someone just claimed that one."</p></div>
+    <div class="card"><span class="num">FRIDAY 5 PM</span><h4>It closes</h4><p>Every claimant gets one email with their game, seats, and pickup instructions. HR gets a report with CSV export.</p></div>
+  </div>
+  <div class="callout">
+    <strong>The rule that shapes everything</strong>
+    One slot (game date) goes to exactly one employee, and each employee gets one slot per event. The four tickets on Dec 31 are one family's night out, not four separate seats. Both rules live in Postgres unique indexes, so no LiveView bug can break them.
+  </div>
+</section>
+
+<!-- 02 -->
+<section id="cast" data-toc="The pieces">
+  <h2><small>02</small>The pieces</h2>
+  <p>Four nouns and two kinds of people. Once these click, the rest of the RFC reads easily.</p>
+  <div class="grid g4">
+    <div class="card"><span class="tag">Event</span><h4>The thing being handed out</h4><p>Title, rich-text description (Quill, like posts), pickup instructions, eligible roles, and three times: <code>previews_at</code>, <code>opens_at</code>, <code>closes_at</code>.</p></div>
+    <div class="card"><span class="tag blue">Slot</span><h4>One game date</h4><p>Start time, label ("vs. Toledo Walleye"), optional ticket count, location, details ("Sec 104 Row F"). Has no stored status.</p></div>
+    <div class="card"><span class="tag green">Claim</span><h4>An employee took a slot</h4><p>Never deleted. Releasing sets <code>released_at</code>. <code>source</code> is <code>self</code>, <code>admin</code>, or <code>held</code>.</p></div>
+    <div class="card"><span class="tag violet">Hold</span><h4>A claim for nobody</h4><p>A claim row with <code>user_id = NULL</code> and a required note ("Exec: client entertainment"). Looks like "Taken" to employees.</p></div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h4>Employee</h4><p>Active user (<code>service_account_enabled</code>) in the same organization who holds at least one of the event's roles. Same join shape as <code>Posts.post_accessible_to_user?/2</code>. Admins are <em>not</em> automatically eligible to claim.</p></div>
+    <div class="card"><h4>Event manager</h4><p><code>is_admin</code> <strong>or</strong> the new <code>is_event_coordinator</code>. Runs events, holds, assignments, releases, and the report. Coordinators can't see any other admin page.</p></div>
+  </div>
+</section>
+
+<!-- 03 -->
+<section id="timeline" data-toc="An event's life">
+  <h2><small>03</small>An event's life</h2>
+  <p>Only <code>status</code> is stored (<code>draft</code>, <code>published</code>, <code>closed</code>, <code>archived</code>). Whether claiming is open comes from status <em>plus the clock</em>. Drag the slider or click a phase to see what an employee would get at that moment.</p>
+  <div data-widget="scrubber" data-key="lifecycle"></div>
+  <div class="callout blue">
+    <strong>Why a 404 and not "not allowed"?</strong>
+    Before <code>previews_at</code>, and for anyone outside the roles, the event page returns the exact same 404 as a made-up id. A leaked or guessed URL reveals nothing, including the event's title.
+  </div>
+  <p>The countdown runs on <code>Process.send_after(self(), :opened, ms)</code> in the LiveView, so the page flips with no reload. The server never trusts that timer: <code>ensure_open/2</code> re-checks server time inside the claim transaction. A click a few ms early because of node clock skew just gets "Sign-ups open at 9:00" and can retry.</p>
+  <div class="rnote" id="rn-draft-holds" data-sev="lo" data-label="nit">
+    <span class="rlabel">Reviewer note</span><span class="sev lo">nit</span><b>Lifecycle table vs. holds.</b>
+    <p>The RFC's Draft row lists "admin assign allowed" but not holds, while Decision 11 says holds can be placed at any time. Probably a table omission. The slider above follows Decision 11.</p>
+  </div>
+</section>
+
+<!-- 04 -->
+<section id="flood" data-toc="The 9:00 flood">
+  <h2><small>04</small>The 9:00 flood</h2>
+  <p>This is the heart of the RFC. A claim is one <code>INSERT</code> into <code>signup_claims</code>. Two partial unique indexes guard it. When two transactions try to insert the same key, Postgres makes the second one <em>wait</em> on the first's uncommitted index entry, then decides based on whether the first commits or rolls back. Whoever commits first wins. That's FCFS, enforced by the database.</p>
+  <div data-widget="sim" data-key="claims"></div>
+
+  <h3>The code, trimmed</h3>
+<pre><code>def claim_slot(%User{} = user, slot_id) do
+  Repo.transaction(fn ->
+    slot = Repo.get!(Slot, slot_id) |> Repo.preload(:event)
+    with :ok &lt;- ensure_open(slot.event, DateTime.utc_now()),
+         :ok &lt;- ensure_eligible(slot.event, user),
+         {:ok, claim} &lt;- insert_claim(slot.event, slot, user, source: :self) do
+      claim
+    else
+      {:error, %Ecto.Changeset{} = cs} -> Repo.rollback(claim_error(cs, user, slot))
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end)
+  |> tap(&amp;broadcast_after_commit/1)
+end</code></pre>
+  <p>The context never asks "is this slot free?" first. That answer could be stale by the time the insert runs. The LiveView may grey out taken slots for UX, but only the insert decides.</p>
+
+  <div class="rnote" id="rn-aborted" data-sev="hi" data-label="check">
+    <span class="rlabel">Reviewer note</span><span class="sev hi">check</span><b>Double-click lookup runs inside an aborted transaction.</b>
+    <p><code>claim_error/3</code> is supposed to notice "this slot's active claim is already mine" and return <code>{:ok, existing_claim}</code>. It runs after the failed <code>INSERT</code>, still inside <code>Repo.transaction</code>. Once a statement errors, Postgres aborts the transaction and any further query in it fails. The lookup has to happen after the rollback, outside the transaction.</p>
+  </div>
+  <div class="rnote" id="rn-either-index" data-sev="md" data-label="check">
+    <span class="rlabel">Reviewer note</span><span class="sev md">check</span><b>Same user, same slot can trip either index.</b>
+    <p>A double click on one game conflicts on both <code>..._per_slot</code> and <code>..._per_user</code>. Which one Postgres reports isn't something to rely on, so the "it's already mine" check should run for both <code>:slot_taken</code> and <code>:already_claimed</code>.</p>
+  </div>
+  <div class="rnote" id="rn-get-bang" data-sev="lo" data-label="nit">
+    <span class="rlabel">Reviewer note</span><span class="sev lo">nit</span><b><code>Repo.get!</code> on a client-supplied slot id.</b>
+    <p>A bad or deleted id raises inside the transaction. Users still can't claim across events by guessing ids, but the failure is a LiveView crash instead of a clean not-found.</p>
+  </div>
+
+  <table>
+    <tr><th>Result</th><th>What the employee sees</th></tr>
+    <tr><td><code>{:ok, claim}</code></td><td>"You're going: Dec 31 vs. Toledo Walleye"</td></tr>
+    <tr><td><code>{:error, :slot_taken}</code></td><td>"Someone just claimed that one. Pick another."</td></tr>
+    <tr><td><code>{:error, :already_claimed}</code></td><td>"You already have {their slot}."</td></tr>
+    <tr><td><code>{:error, :not_open}</code></td><td>"Sign-ups open at {opens_at}." or "Sign-ups are closed."</td></tr>
+    <tr><td><code>{:error, :not_eligible}</code></td><td>Treated as not found; redirect to <code>/events</code></td></tr>
+  </table>
+  <p class="note-small">Before any of this, a client-side confirm modal (pure <code>JS</code> commands, no round trip) names the slot and the one-per-event rule. A claim is final for the employee, so a misclick shouldn't lock someone into the wrong game.</p>
+</section>
+
+<!-- 05 -->
+<section id="indexes" data-toc="Two indexes">
+  <h2><small>05</small>Two indexes do the work</h2>
+<pre><code>CREATE UNIQUE INDEX signup_claims_one_active_per_slot
+  ON signup_claims (slot_id) WHERE released_at IS NULL;
+
+CREATE UNIQUE INDEX signup_claims_one_active_per_user
+  ON signup_claims (event_id, user_id) WHERE released_at IS NULL;</code></pre>
+  <div class="grid g3">
+    <div class="card"><h4>Partial = history for free</h4><p>Releasing a claim sets <code>released_at</code>, which drops the row out of both indexes. The slot opens, the employee can pick again, and the old row stays for the report.</p></div>
+    <div class="card"><h4>The name tells you which rule</h4><p><code>claim_error/3</code> maps <code>..._per_slot</code> to <code>:slot_taken</code> and <code>..._per_user</code> to <code>:already_claimed</code>. No extra query to figure out what went wrong.</p></div>
+    <div class="card"><h4>Holds slip past the user rule</h4><p>Postgres treats NULLs as distinct in unique indexes. Holds have <code>user_id = NULL</code>, so any number of them coexist in one event. They still take their slot through the per-slot index. The RFC forbids <code>NULLS NOT DISTINCT</code> for this reason.</p></div>
+  </div>
+  <p>A check constraint keeps hold rows honest:</p>
+<pre><code>CHECK ((source = 'held') = (user_id IS NULL)
+   AND (source &lt;&gt; 'held' OR note IS NOT NULL))</code></pre>
+  <p>Read it as: a hold has no user and must have a note; every non-hold has a user.</p>
+  <div class="callout green">
+    <strong>Why not a capacity counter?</strong>
+    The first draft had <code>capacity</code> and <code>claimed_count</code> with a conditional <code>UPDATE</code>. Tickets here go to one family per date, so the counter was a denormalized column that could drift, serving a case nobody asked for. If shared-date events show up (volunteer shifts), model them as several slots on one date or add capacity back then.
+  </div>
+</section>
+
+<!-- 06 -->
+<section id="model" data-toc="Data model">
+  <h2><small>06</small>Data model</h2>
+  <p>Four new tables plus one column on <code>users</code>. All <code>binary_id</code> keys and <code>timestamps()</code>. Hover or focus a column for the RFC's note on it.</p>
+  <div data-widget="schema" data-key="model"></div>
+  <p class="note-small">Slots have no status column. A slot is taken when it has an active claim, open otherwise, so there's nothing to keep in sync. <code>slot_id</code> and <code>user_id</code> on claims are <code>on_delete: :restrict</code>, so deleting a slot with history, or ever hard-deleting a user, fails loudly instead of punching holes in the report.</p>
+</section>
+
+<!-- 07 -->
+<section id="live" data-toc="Live updates">
+  <h2><small>07</small>Live updates</h2>
+  <p>Every employee page subscribes to <code>"signup_event:#{event_id}"</code> on <code>Pulse.PubSub</code>. After a claim or release <em>commits</em>, the context broadcasts <code>{:slot_changed, slot_id, :taken | :open}</code> and each LiveView updates that one slot in a stream. Admin edits broadcast <code>{:event_changed, event_id}</code> and pages reload the event.</p>
+  <div class="flow">
+    <div class="step"><b>1. Commit</b>Alice's INSERT commits in Postgres</div><div class="arrow">→</div>
+    <div class="step"><b>2. Broadcast</b><code>{:slot_changed, id, :taken}</code> across the DNSCluster</div><div class="arrow">→</div>
+    <div class="step"><b>3. Patch</b>Every open page flips that game to "Taken" within a second</div>
+  </div>
+  <div class="callout">
+    <strong>PubSub is a courtesy</strong>
+    If a broadcast is lost (cluster split, node restart), a page may show a taken slot as open. Clicking it returns <code>:slot_taken</code> and the page corrects itself. Correctness never depends on the broadcast (OR2).
+  </div>
+  <p>Volume: 300 claims × 300 open pages ≈ 90,000 small deliveries over the first minute.</p>
+</section>
+
+<!-- 08 -->
+<section id="presence" data-toc="Who's viewing">
+  <h2><small>08</small>Who's viewing</h2>
+  <p>The event page shows a "Viewing now" strip of profile photos so people can watch the room fill up before 9:00. It uses <code>PulseWeb.Presence</code> on a separate topic, <code>"signup_event_viewers:#{event_id}"</code>, keyed by <code>user.id</code> so three tabs count once. Photo URL is computed at track time, so rendering costs no queries.</p>
+  <div data-widget="custom" data-key="presence"></div>
+  <p>At 8:59 hundreds of people join within seconds and every join sends a diff to every viewer. The LiveView applies diffs to an assign and re-renders the strip at most once per second. Toggle the throttle off to see how many renders that saves.</p>
+  <h3>Privacy rules</h3>
+  <ul>
+    <li>Presence meta carries only name, email, and photo URL. Claiming never updates it.</li>
+    <li>No badge, ring, or ordering hints at who has claimed. The viewers modal lists names alphabetically, not by join order.</li>
+    <li>Slot rows show Claim, Taken, Yours, or Not open yet. "Yours" only for your own claim. Held slots look identical to taken ones.</li>
+    <li>Copy says "Viewing now" or "Here with you", never "Waiting to claim".</li>
+  </ul>
+  <p class="note-small">The RFC admits someone could infer a claim if a viewer leaves right after a game turns taken. It doesn't try to prevent that, only to avoid making it easier.</p>
+</section>
+
+<!-- 09 -->
+<section id="admin" data-toc="Admin tools">
+  <h2><small>09</small>Admin tools</h2>
+  <p>Management lives at <code>/admin/events</code> in a new <code>:event_admin</code> live_session. Three actions change who has a slot:</p>
+  <div class="grid g3">
+    <div class="card"><span class="tag violet">hold_slots/3</span><h4>Hold</h4><p>Check several open slots, enter a required note, click Hold. One transaction, all or nothing. If any slot was already taken, it rolls back and returns <code>{:error, {:slots_taken, ids}}</code> so the admin can deselect and retry.</p><p>Skips the time window and eligibility (no user to check). Sends no email, ever.</p></div>
+    <div class="card"><span class="tag blue">assign_slot/3</span><h4>Assign</h4><p>Runs the normal claim algorithm with <code>source: :admin</code>. Skips the time window, so it works in draft and before opening (the superintendent who can't be at a desk at 9:00). Still requires eligibility and both indexes.</p></div>
+    <div class="card"><span class="tag red">release_claim/3</span><h4>Release</h4><p>Locks the claim row <code>FOR UPDATE</code>, refuses a double release, sets <code>released_at</code>, <code>released_by_id</code>, and a required reason. Works the same for holds. The slot reopens on every page.</p></div>
+  </div>
+  <div class="callout red">
+    <strong>Employees can't release their own claim</strong>
+    Decision log 1: they ask an event manager. This stops people from releasing and re-picking to game the system.
+  </div>
+  <h3>The report</h3>
+  <p><code>/admin/events/:id/report</code> has a summary (eligible users, active claims, held slots counted separately, open slots, releases), one row per slot in date order with claimant or "Held: note", a Released section with reasons, and a collapsed "Eligible, no claim" list for follow-up next time.</p>
+  <p>CSV export is a controller at <code>GET /admin/events/:id/report.csv</code>. Here's a detail worth knowing: the <code>/admin</code> router scope only requires <em>authentication</em> for controller routes today, not admin. So the RFC adds a <code>:require_event_manager</code> plug that 404s anyone else. Fixing the existing <code>ImageController</code> exposure is listed as future work.</p>
+</section>
+
+<!-- 10 -->
+<section id="csv" data-toc="CSV import">
+  <h2><small>10</small>CSV slot import</h2>
+  <p>HR downloads a static template, fills in the season in Excel, saves as CSV, uploads. The file is consumed locally (not sent to S3), parsed by <code>Pulse.Signups.SlotImport.parse/1</code>, previewed with per-row errors, and saved in one <code>insert_all</code> only if every row is valid.</p>
+<pre><code>date,time,label,ticket_count,location,details
+10/17/2026,7:30 PM,vs. Toledo Walleye,4,Allen County War Memorial Coliseum,Sec 104 Row F
+10/24/2026,7:30 PM,vs. Kalamazoo Wings,4,Allen County War Memorial Coliseum,Sec 104 Row F</code></pre>
+  <p>Most of the parsing rules exist because Excel does odd things:</p>
+  <div class="grid g3">
+    <div class="card"><h4>Encoding</h4><p>Strip the UTF-8 BOM ("CSV UTF-8"). If it isn't valid UTF-8, treat it as Windows-1252 (plain "CSV Comma delimited"). Normalize <code>\r\n</code> and old Mac <code>\r</code>.</p></div>
+    <div class="card"><h4>Headers</h4><p>Case-insensitive, any order. <code>date</code> and <code>label</code> required. Unknown columns ignored, so HR can keep a notes column.</p></div>
+    <div class="card"><h4>Dates</h4><p><code>M/D/YYYY</code>, <code>YYYY-MM-DD</code>, and Excel serial numbers like <code>46312</code> when a column got formatted as a number.</p></div>
+    <div class="card"><h4>Times</h4><p><code>h:mm AM/PM</code>, <code>HH:MM</code>, or blank. Blank means <code>all_day = true</code> at local midnight. Read as America/Indiana/Indianapolis, stored as UTC.</p></div>
+    <div class="card"><h4>Row numbers</h4><p>Errors use spreadsheet rows (header = row 1): <em>Row 14: time "7:30" needs AM or PM</em>. Fully blank trailing rows are skipped.</p></div>
+    <div class="card"><h4>Duplicates</h4><p>Same date + time + label as an existing slot or another row is an error, so uploading the same file twice does nothing.</p></div>
+  </div>
+  <p class="note-small">The report export uses the same <code>NimbleCSV</code> module with a UTF-8 BOM so Excel shows accented names correctly.</p>
+</section>
+
+<!-- 11 -->
+<section id="roles" data-toc="Who can do what">
+  <h2><small>11</small>Who can do what</h2>
+  <p>A new <code>Pulse.EventCoordinator</code> app role, mapped by GUID in postern's static config (same as <code>Pulse.Admin</code>), lets HR run events without full admin. Renaming the role in the Entra portal can't change access. If <code>PULSE_EVENT_COORDINATOR_ROLE_ID</code> is unset, only admins manage events.</p>
+  <div data-widget="matrix" data-key="perms"></div>
+  <p>Wiring: <code>replace_postern_roles/2</code> pulls the coordinator name out before matching DB roles and sets <code>users.is_event_coordinator</code>. <code>InitAssigns</code> gets an <code>:event_admin</code> kind; the existing <code>:admin</code> kind is unchanged. Every management function in <code>Pulse.Signups</code> also checks <code>manager?/1</code> and returns <code>{:error, :unauthorized}</code>, so a mounted socket whose user lost the role can't keep writing. Coordinators reach the pages through a "Manage events" link in the user nav, since they can't open <code>/admin</code>.</p>
+</section>
+
+<!-- 12 -->
+<section id="email" data-toc="Emails">
+  <h2><small>12</small>Emails go out at close, not at claim</h2>
+  <p>The window may stay open for days, during which admins release and reassign. An email sent at 9:00:01 could be wrong by Friday. So the employee page is the confirmation while it's open, and everyone gets one final email when it closes. Side benefit: no email burst during the flood.</p>
+  <div class="flow">
+    <div class="step"><b>Close happens</b>Manual <code>close_event/2</code>, or a job scheduled at <code>closes_at</code> (unique on event_id; moving <code>closes_at</code> reschedules it)</div><div class="arrow">→</div>
+    <div class="step"><b>SignupCloseNotifier</b>Bails if the event isn't actually closed yet. Selects active claims with a user and <code>notified_at IS NULL</code>. Holds skipped.</div><div class="arrow">→</div>
+    <div class="step"><b>SignupClaimNotifier × N</b><code>Oban.insert_all</code>, one per claim, kind <code>confirmed</code>. Skips released claims, sends, sets <code>notified_at</code>.</div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h4>After the close</h4><p>An admin assign or release emails the affected employee right away (<code>assigned</code> / <code>released</code> kinds). Before close, admin changes send nothing, because the close email covers the final state.</p></div>
+    <div class="card"><h4>Reopen</h4><p><code>reopen_event/2</code> sets <code>published</code> and clears <code>closed_at</code>. Claims already emailed keep <code>notified_at</code>, so only new claims get emailed at the next close.</p></div>
+  </div>
+  <p class="note-small">No automatic email when a slot's date or label changes (Decision log 7). The admin page warns the manager to tell claimants themselves.</p>
+  <div class="rnote" id="rn-reopen" data-sev="md" data-label="gap">
+    <span class="rlabel">Reviewer note</span><span class="sev md">gap</span><b>Reopen doesn't say it re-enqueues the close job.</b>
+    <p>After a close, the scheduled <code>SignupCloseNotifier</code> has already run. <code>reopen_event/2</code> with a future <code>closes_at</code> needs to schedule a new one, or the event never closes on its own again. "Publishing or changing <code>closes_at</code>" covers it only if reopen counts as one of those.</p>
+  </div>
+  <div class="rnote" id="rn-unique-job" data-sev="md" data-label="check">
+    <span class="rlabel">Reviewer note</span><span class="sev md">check</span><b>Manual close vs. the scheduled unique job.</b>
+    <p>Manual close enqueues <code>SignupCloseNotifier</code> while a scheduled one for the same <code>event_id</code> may already exist. With <code>unique</code> + <code>replace: [scheduled: [:scheduled_at]]</code>, the insert likely moves the existing job to now, which is fine. Confirm that against Oban Pro's unique semantics and cover it in a worker test.</p>
+  </div>
+  <div class="rnote" id="rn-status" data-sev="lo" data-label="nit">
+    <span class="rlabel">Reviewer note</span><span class="sev lo">nit</span><b>Scheduled close doesn't set <code>status</code>.</b>
+    <p>The close job sets <code>closed_at</code> but leaves <code>status = published</code>. The lifecycle table handles this through time, but it means "closed" has two representations. Fine if intentional; the RFC should say so.</p>
+  </div>
+</section>
+
+<!-- 13 -->
+<section id="load" data-toc="Load and risks">
+  <h2><small>13</small>Load and risks</h2>
+  <div class="grid g2">
+    <div class="card"><h4>Claims</h4><p>Each holds a connection for a few ms. Pool of 10 per node across several nodes: 300 claims clear in well under a second. 100 people on the New Year's Eve game queue on one index entry for about a ms each; 99 get <code>:slot_taken</code>. Target: p95 under 20 ms (OR1).</p></div>
+    <div class="card"><h4>Postern / Graph</h4><p>Every load goes through postern, which refreshes roles from Graph on cache expiry. Everyone arriving at 9:00 means a burst of Graph calls. The countdown page encourages people to show up early, which spreads it out.</p></div>
+    <div class="card"><h4>Deploys</h4><p>A deploy drops every socket during the moment people care about most. Rule: no deploys within an hour of an <code>opens_at</code>. The admin dashboard SHOULD show upcoming openings.</p></div>
+    <div class="card"><h4>Clock skew</h4><p>ECS nodes may open a few hundred ms apart. Early clicks get <code>:not_open</code> and retry. NTP keeps it small.</p></div>
+  </div>
+  <h3>Policy risks the RFC calls out</h3>
+  <ul>
+    <li><b>FCFS favors desk workers.</b> Field staff may miss every popular game. Admin assignment is the release valve; a lottery is the likely next step.</li>
+    <li><b>Holds are invisible to employees.</b> By design. If execs hold all the best dates, people will notice anyway. The report makes it auditable.</li>
+    <li><b>Role churn.</b> Someone who changes departments after claiming keeps their claim. Eligibility is checked at claim time only.</li>
+    <li><b>Coordinator removal lags Entra</b> by the postern <code>roles_ttl_ms</code>, same as admin today.</li>
+  </ul>
+</section>
+
+<!-- 14 -->
+<section id="why" data-toc="Roads not taken">
+  <h2><small>14</small>Roads not taken</h2>
+  <details><summary>Slot capacity with a claim counter</summary><p>Supports shared dates, but tickets go to one family per date. A drifting denormalized counter plus a CHECK and capacity-edit code path for a case nobody needs.</p></details>
+  <details><summary><code>SELECT ... FOR UPDATE</code> on the slot row</summary><p>Correct, but holds a lock across round trips and puts the rule in Elixir. The partial index enforces the same rule in one statement and also covers inserts that bypass the context.</p></details>
+  <details><summary>Queue claims through Oban or a GenServer</summary><p>Natural ordering, but a single point of failure, cross-node routing, and a reply path to the LiveView. Postgres already serializes conflicting writes and survives restarts.</p></details>
+  <details><summary>Lottery instead of FCFS</summary><p>Fairer to field staff and removes the flood. Not what was asked for, and needs ranking, a draw, and result notification. Left as future work with an <code>allocation</code> column.</p></details>
+  <details><summary>Reuse posts as the container</summary><p>Free roles and editor, but posts carry feed semantics (display date, category, reactions, drafts), and editing a post's roles would silently change who's eligible.</p></details>
+  <h3>Decision log</h3>
+  <table>
+    <tr><th>#</th><th>Question</th><th>Answer</th></tr>
+    <tr><td>1</td><td>Self-release?</td><td>No. A manager releases on request.</td></tr>
+    <tr><td>2</td><td>More than one claim per event?</td><td>No. Execs get extra dates through holds.</td></tr>
+    <tr><td>3</td><td>Who manages events?</td><td>New Event Coordinator role.</td></tr>
+    <tr><td>4</td><td>Fairness for field staff?</td><td>FCFS first. Lottery after season one.</td></tr>
+    <tr><td>5</td><td>Who sees the report?</td><td>Event managers.</td></tr>
+    <tr><td>6</td><td>Who is a hold for?</td><td>The note only, no Pulse user.</td></tr>
+    <tr><td>7</td><td>Email on slot changes?</td><td>No. UI warns the manager.</td></tr>
+  </table>
+</section>
+
+<!-- 15 -->
+<section id="plan" data-toc="Build plan">
+  <h2><small>15</small>Build plan</h2>
+  <div class="flow">
+    <div class="step"><b>Phase 1</b>Migrations, schemas, context (claim, release, assign, hold), constraint tests, coordinator role wiring</div><div class="arrow">→</div>
+    <div class="step"><b>Phase 2</b>Admin pages, CSV template and import, nav</div><div class="arrow">→</div>
+    <div class="step"><b>Phase 3</b>Employee pages, countdown, confirm modal, PubSub, presence strip</div><div class="arrow">→</div>
+    <div class="step"><b>Phase 4</b>Report, <code>:require_event_manager</code>, CSV export, close and claim notifiers</div><div class="arrow">→</div>
+    <div class="step"><b>Phase 5</b>Dry run in prod with a test role and 2–3 people</div>
+  </div>
+  <h3>Testing approach</h3>
+  <p>The Ecto sandbox runs each test in one transaction on one connection, so concurrent <code>Task</code>s get serialized and can't reproduce a real race. Since the guarantees come from Postgres anyway, tests hit the constraints directly: insert a second active claim and assert the right violation. An optional <code>@tag :concurrency</code> stress test checks out real connections and fires 200 claims at one slot, expecting exactly one success.</p>
+  <h3>Rollout</h3>
+  <p>Two additive migrations, no backfill, no feature flag (nothing is visible until someone publishes). Ops work before the first event: create the app role on each edge registration, set <code>PULSE_EVENT_COORDINATOR_ROLE_ID</code> in the ECS task definition, assign HR in Entra. Watch AppSignal for claim transaction time and any raw <code>Ecto.ConstraintError</code>.</p>
+</section>
+
+<!-- 16 -->
+<section id="quiz" data-toc="Check yourself">
+  <h2><small>16</small>Check yourself</h2>
+  <div data-widget="quiz" data-key="main"></div>
+</section>
+
+<!-- 17 -->
+<section id="review" data-toc="Reviewer notes">
+  <h2><small>17</small>Reviewer notes</h2>
+  <p>My observations from reading the RFC closely, not part of the document. Each one sits inline in the section it's about, in a dashed box; this list links to them in priority order.</p>
+  <ol id="review-index"></ol>
+  <div class="rnote" id="rn-fr-numbering" data-sev="lo" data-label="nit">
+    <span class="rlabel">Reviewer note</span><span class="sev lo">nit</span><b>Requirement numbering.</b>
+    <p>FR3a, FR10a, and FR10b appear out of order (FR10b sits after FR11). Renumbering would make review comments easier to anchor. This explainer doesn't walk through the FR list, so the note lives here.</p>
+  </div>
+</section>
+</main>
+</div>
+
+<script>
+// =====================================================================
+// CONTENT CONFIG. Strings are inserted as HTML, so <code> and <b> work.
+// =====================================================================
+const SLOTS = [['Oct 17', 'vs. Toledo Walleye'], ['Oct 24', 'vs. Kalamazoo Wings'], ['Dec 31', 'vs. Toledo Walleye'], ['Jan 9', 'vs. Cincinnati Cyclones']];
+function eventPage(view) {
+  if (view === '404') return '<div class="bar">/events/8f2c…</div><div class="empty-state"><div><b>404</b>Not found. Same page you\'d get for an id that never existed.</div></div>';
+  const rows = SLOTS.map((s, i) => {
+    let b;
+    if (view === 'preview') b = '<span class="badge">Not open yet</span>';
+    else if (view === 'open') b = (i === 1 || i === 2) ? '<span class="badge">Taken</span>' : '<span class="badge ink">Claim</span>';
+    else b = i === 0 ? '<span class="badge green">Yours</span>' : '<span class="badge">Taken</span>';
+    return `<div class="row"><span><b>${s[0]}</b> ${s[1]}</span>${b}</div>`;
+  }).join('');
+  const banner = view === 'preview' ? '<div class="banner amber">Opens in 2d 14h 03m 11s</div>'
+    : view === 'open' ? '<div class="banner green">Open now · pick one game</div>'
+    : '<div class="banner">Closed · You\'re going Oct 17. Pickup: tickets emailed from HR the Monday before.</div>';
+  return `<div class="bar">/events/8f2c… · Viewing now: 41</div><div style="font-weight:700;font-size:15px">2026-2027 Komets Hockey</div>${banner}${rows}`;
+}
+
+const EXPLAINER = {
+  scrubber: {
+    lifecycle: {
+      phases: [
+        { label: 'Draft', sub: 'any time', title: 'Draft', desc: 'Still being built. Only event managers see it in /admin/events.',
+          facts: [['Stored status', 'draft'], ['Employees see it', 'No (404)'], ['Self claims', 'No'], ['Admin assign / hold', 'Yes'], ['Emails', 'None']], preview: eventPage('404') },
+        { label: 'Upcoming', sub: 'before previews_at', title: 'Upcoming', desc: 'Finished and published, but it appears on its own at previews_at. This is when HR places executive holds and fixes typos.',
+          facts: [['Stored status', 'published'], ['Employees see it', 'No (404, identical to a missing id)'], ['Self claims', 'No'], ['Admin assign / hold', 'Yes'], ['Emails', 'None']], preview: eventPage('404') },
+        { label: 'Preview', sub: 'previews_at → opens_at', title: 'Preview', desc: 'Employees can browse the description and every slot, with a countdown. Buttons are disabled. People pick a first choice and a backup.',
+          facts: [['Stored status', 'published'], ['Employees see it', 'Yes, with countdown'], ['Self claims', 'No (server refuses)'], ['Admin assign / hold', 'Yes'], ['Emails', 'None']], preview: eventPage('preview') },
+        { label: 'Open', sub: 'opens_at → closes_at', title: 'Open', desc: 'The page flips to open via send_after with no reload. Claims are live. The employee page is the only confirmation for now.',
+          facts: [['Stored status', 'published'], ['Employees see it', 'Yes'], ['Self claims', 'Yes, one per person'], ['Admin assign / hold', 'Yes'], ['Emails', 'None while open']], preview: eventPage('open') },
+        { label: 'Closed (time)', sub: 'after closes_at', title: 'Closed by the clock', desc: 'status is still published, but the time is past closes_at. The scheduled close job runs and confirmation emails go out.',
+          facts: [['Stored status', 'published'], ['Employees see it', 'Read-only, with their claim'], ['Self claims', 'No'], ['Admin assign / release', 'Yes, emails the employee right away'], ['Emails', 'One confirmation per claimant']], preview: eventPage('closed') },
+        { label: 'Closed', sub: 'manual close', title: 'Closed by hand', desc: 'close_event/2 sets status = closed and closed_at, and enqueues the close notifier in the same transaction.',
+          facts: [['Stored status', 'closed'], ['Employees see it', 'Read-only'], ['Self claims', 'No'], ['Admin assign / release', 'Yes, emails right away'], ['Emails', 'One confirmation per claimant']], preview: eventPage('closed') },
+        { label: 'Archived', sub: 'season over', title: 'Archived', desc: 'Removed from employee view entirely. Still in the admin pages and report.',
+          facts: [['Stored status', 'archived'], ['Employees see it', 'No'], ['Self claims', 'No'], ['Admin', 'Report still available'], ['Emails', 'None']], preview: eventPage('404') },
+      ],
+    },
+  },
+  sim: {
+    claims: {
+      scenarios: [
+        { key: 'same', label: 'Two people, same game',
+          lanes: [{ name: "Alice's browser" }, { name: 'Postgres', system: true }, { name: "Bob's browser" }],
+          state: [{ key: 'slot', label: 'one_active_per_slot', sub: '(slot_id) WHERE released_at IS NULL' }, { key: 'user', label: 'one_active_per_user', sub: '(event_id, user_id) WHERE released_at IS NULL' }],
+          steps: [
+            { lane: 0, kind: 'k0', text: 'Clicks Claim on Dec 31, confirms', say: 'Alice and Bob both confirm Dec 31 within a few milliseconds of each other.' },
+            { lane: 2, kind: 'k1', text: 'Clicks Claim on Dec 31, confirms' },
+            { lane: 1, kind: 'code', text: 'A: BEGIN; eligibility ✓; INSERT slot=dec31 user=alice', state: { slot: [['dec31 (alice)', 'pending']], user: [['komets/alice', 'pending']] }, say: "Alice's INSERT lands first. Its index entries exist but aren't committed yet." },
+            { lane: 1, kind: 'code', text: 'B: BEGIN; eligibility ✓; INSERT slot=dec31 user=bob' },
+            { lane: 1, kind: 'wait', text: "B waits on A's uncommitted dec31 entry", say: "Bob's insert hits the same key in one_active_per_slot. Postgres doesn't fail it yet; it waits to see what Alice's transaction does." },
+            { lane: 1, kind: 'code', text: 'A: COMMIT', state: { slot: [['dec31 (alice)', 'done']], user: [['komets/alice', 'done']] }, say: 'Alice commits. She was first.' },
+            { lane: 1, kind: 'err', text: 'B: unique violation signup_claims_one_active_per_slot → ROLLBACK' },
+            { lane: 0, kind: 'ok', text: "You're going: Dec 31 vs. Toledo Walleye" },
+            { lane: 2, kind: 'err', text: 'Someone just claimed that one. Pick another.', say: "The constraint name maps to :slot_taken. Bob's page marks Dec 31 taken (the broadcast probably beat the error anyway). Every other button stays enabled." },
+          ] },
+        { key: 'tabs', label: 'One person, two tabs',
+          lanes: [{ name: 'Carol, tab 1' }, { name: 'Postgres', system: true }, { name: 'Carol, tab 2' }],
+          state: [{ key: 'slot', label: 'one_active_per_slot', sub: '(slot_id)' }, { key: 'user', label: 'one_active_per_user', sub: '(event_id, user_id)' }],
+          steps: [
+            { lane: 0, kind: 'k0', text: 'Claims Dec 31', say: 'Carol has two tabs open and claims different games in each at the same moment.' },
+            { lane: 2, kind: 'k1', text: 'Claims Jan 9' },
+            { lane: 1, kind: 'code', text: 'T1: INSERT slot=dec31 user=carol', state: { slot: [['dec31 (carol)', 'pending']], user: [['komets/carol', 'pending']] } },
+            { lane: 1, kind: 'code', text: 'T2: INSERT slot=jan9 user=carol', state: { slot: [['dec31 (carol)', 'pending'], ['jan9 (carol)', 'pending']], user: [['komets/carol', 'pending']] }, say: 'Different slots, so the per-slot index has no conflict. But both rows share (event, carol) in the per-user index.' },
+            { lane: 1, kind: 'wait', text: "T2 waits on T1's komets/carol entry" },
+            { lane: 1, kind: 'code', text: 'T1: COMMIT', state: { slot: [['dec31 (carol)', 'done']], user: [['komets/carol', 'done']] } },
+            { lane: 1, kind: 'err', text: 'T2: unique violation signup_claims_one_active_per_user → ROLLBACK', say: 'T2 fails the per-user index and rolls back, so Jan 9 never looked taken to anyone.' },
+            { lane: 0, kind: 'ok', text: "You're going: Dec 31" },
+            { lane: 2, kind: 'err', text: 'You already have Dec 31 vs. Toledo Walleye.', say: 'The per-user constraint name maps to :already_claimed.' },
+          ] },
+        { key: 'hold', label: 'Hold vs. claim',
+          lanes: [{ name: 'Admin (hold 6 games)' }, { name: 'Postgres', system: true }, { name: "Dave's browser" }],
+          state: [{ key: 'slot', label: 'one_active_per_slot', sub: '(slot_id)' }, { key: 'user', label: 'one_active_per_user', sub: '(event_id, user_id)' }],
+          steps: [
+            { lane: 0, kind: 'k0', text: 'Selects 6 games incl. Dec 31, note "Exec: client entertainment", clicks Hold', say: 'Holds can be placed any time, including while the event is open. Suppose an admin and an employee go for Dec 31 at once.' },
+            { lane: 2, kind: 'k1', text: 'Claims Dec 31' },
+            { lane: 1, kind: 'code', text: 'Dave: INSERT slot=dec31 user=dave', state: { slot: [['dec31 (dave)', 'pending']], user: [['komets/dave', 'pending']] } },
+            { lane: 1, kind: 'code', text: 'Admin: INSERT 6 held rows, user_id=NULL', say: 'Held rows have user_id NULL. NULLs are distinct in unique indexes, so they never touch the per-user index.' },
+            { lane: 1, kind: 'wait', text: "Admin's dec31 row waits on Dave's entry" },
+            { lane: 1, kind: 'code', text: 'Dave: COMMIT', state: { slot: [['dec31 (dave)', 'done']], user: [['komets/dave', 'done']] } },
+            { lane: 1, kind: 'err', text: 'Admin: per_slot violation → ROLLBACK all 6', say: 'Holds are all or nothing. None of the six are held.' },
+            { lane: 2, kind: 'ok', text: "You're going: Dec 31" },
+            { lane: 0, kind: 'err', text: '{:error, {:slots_taken, [dec31]}}: deselect and retry', say: 'The admin sees which slot was taken, unchecks it, and holds the other five.' },
+          ] },
+        { key: 'rollback', label: 'First one rolls back',
+          lanes: [{ name: "Erin's browser" }, { name: 'Postgres', system: true }, { name: "Frank's browser" }],
+          state: [{ key: 'slot', label: 'one_active_per_slot', sub: '(slot_id)' }, { key: 'user', label: 'one_active_per_user', sub: '(event_id, user_id)' }],
+          steps: [
+            { lane: 0, kind: 'k0', text: 'Already holds Oct 17. Claims Dec 31 anyway (stale page)', say: 'Erin already has a game but her page is stale. She clicks Dec 31. Frank clicks Dec 31 right after.' },
+            { lane: 2, kind: 'k1', text: 'Claims Dec 31' },
+            { lane: 1, kind: 'code', text: 'E: INSERT slot=dec31 user=erin', state: { slot: [['oct17 (erin)', 'done'], ['dec31 (erin)', 'pending']], user: [['komets/erin', 'done']] } },
+            { lane: 1, kind: 'err', text: 'E: per_user violation (already has oct17)', say: "Erin's row conflicts with her own committed claim in the per-user index and fails immediately." },
+            { lane: 1, kind: 'code', text: 'F: INSERT slot=dec31 user=frank', state: { slot: [['oct17 (erin)', 'done'], ['dec31 (frank)', 'pending']], user: [['komets/erin', 'done'], ['komets/frank', 'pending']] }, say: "Had Frank's insert arrived while Erin's was pending, he'd have waited. Because Erin rolled back, he succeeds either way." },
+            { lane: 1, kind: 'code', text: 'F: COMMIT', state: { slot: [['oct17 (erin)', 'done'], ['dec31 (frank)', 'done']], user: [['komets/erin', 'done'], ['komets/frank', 'done']] } },
+            { lane: 0, kind: 'err', text: 'You already have Oct 17.' },
+            { lane: 2, kind: 'ok', text: "You're going: Dec 31", say: 'A loser who rolls back never blocks the next person. "First to commit" wins, not "first to click".' },
+          ] },
+      ],
+    },
+  },
+  schema: {
+    model: {
+      tables: [
+        { name: 'signup_events', cols: [
+          ['organization_id', 'FK', 'FK organizations, on_delete: :delete_all'],
+          ['title', 'string', '"2026-2027 Komets Hockey"'],
+          ['description', 'text', 'Quill HTML, processed by the same body pipeline as Post.body'],
+          ['images', '{:array, :string}', 'Extracted by the shared body pipeline'],
+          ['claim_instructions', 'text?', 'Pickup instructions. Shown after claiming and in the email.'],
+          ['status', 'enum', 'draft | published | closed | archived. Claim-open-ness is derived from this plus time.'],
+          ['previews_at', 'utc_datetime', 'CHECK previews_at <= opens_at. Equal means no preview period; the form defaults it to opens_at.', true],
+          ['opens_at', 'utc_datetime', 'When claims start. Checked server-side inside the transaction.', true],
+          ['closes_at', 'utc_datetime?', 'CHECK closes_at > opens_at. Publishing without one SHOULD warn, since no email goes out until someone closes it by hand.', true],
+          ['closed_at', 'utc_datetime?', 'When the close actually ran. Nulled on reopen.'],
+          ['created_by_id', 'FK?', 'FK users, nilify_all'],
+        ] },
+        { name: 'signup_events_roles', cols: [
+          ['event_id', 'FK', 'PK part. Mirrors posts_roles.', true],
+          ['role_id', 'FK', 'PK part. Indexed for the nav query. Deleting a role silently shrinks eligibility; zero roles means visible to nobody (the safe failure).', true],
+        ] },
+        { name: 'signup_slots', cols: [
+          ['event_id', 'FK', 'FK signup_events, delete_all'],
+          ['starts_at', 'utc_datetime', "Shown in the viewer's timezone. Index (event_id, starts_at)."],
+          ['all_day', 'boolean', 'Set when the imported time was blank. starts_at is local midnight and the time is hidden.'],
+          ['label', 'string', '"vs. Toledo Walleye"'],
+          ['location', 'string?', ''],
+          ['ticket_count', 'integer?', 'Informational only. CHECK >= 1. The slot still goes to one employee.'],
+          ['details', 'string?', '"Section 104 Row F"'],
+        ] },
+        { name: 'signup_claims', cols: [
+          ['event_id', 'FK', 'Denormalized from the slot so the per-user index can live on this table.', true],
+          ['slot_id', 'FK', "on_delete: :restrict, so a slot with history can't be deleted. Part of one_active_per_slot.", true],
+          ['user_id', 'FK?', 'NULL only for holds. :restrict so a future hard delete fails loudly. Part of one_active_per_user.', true],
+          ['source', 'enum', 'self | admin | held'],
+          ['note', 'string?', 'Required for holds. Admin-only.'],
+          ['assigned_by_id', 'FK?', 'Set when source is admin or held.'],
+          ['claimed_at', 'utc_datetime_usec', 'Microseconds so the report shows true order within a second.'],
+          ['released_at', 'utc_datetime_usec?', 'Setting it removes the row from both partial unique indexes.', true],
+          ['released_by_id', 'FK?', ''],
+          ['release_reason', 'string?', 'Required by the release changeset.'],
+          ['notified_at', 'utc_datetime?', 'Set when the confirmation email went out. Makes the email idempotent across retries and reopens.'],
+        ] },
+        { name: 'users (+1 column)', cols: [
+          ['is_event_coordinator', 'boolean', 'Default false, next to is_admin. Only replace_postern_roles/2 writes it.', true],
+        ] },
+      ],
+    },
+  },
+  matrix: {
+    perms: {
+      personas: [{ key: 'user', label: 'Eligible employee' }, { key: 'coord', label: 'Event Coordinator' }, { key: 'admin', label: 'Pulse admin' }, { key: 'out', label: "Not in event's roles" }],
+      legend: {
+        yes: '<span class="yes">Yes</span>',
+        role: '<span class="maybe">Only if they hold one of the event\'s roles</span>',
+        no: '<span class="no">No</span>',
+        no404: '<span class="no">404</span>',
+        noR: '<span class="no">Redirected to /</span>',
+      },
+      rows: [
+        { label: '/events and /events/:id (after previews_at)', values: { user: 'yes', coord: 'role', admin: 'role', out: 'no404' } },
+        { label: 'Claim a slot', values: { user: 'yes', coord: 'role', admin: 'role', out: 'no' } },
+        { label: '"Sign-ups" item in user nav', values: { user: 'yes', coord: 'role', admin: 'role', out: 'no' } },
+        { label: '"Manage events" link in user nav', values: { user: 'no', coord: 'yes', admin: 'yes', out: 'no' } },
+        { label: '/admin/events (create, edit, holds, assign, release)', values: { user: 'noR', coord: 'yes', admin: 'yes', out: 'noR' } },
+        { label: '/admin/events/:id/report', values: { user: 'noR', coord: 'yes', admin: 'yes', out: 'noR' } },
+        { label: '/admin/events/:id/report.csv', values: { user: 'no404', coord: 'yes', admin: 'yes', out: 'no404' } },
+        { label: '/admin, News, Links, People, Settings', values: { user: 'noR', coord: 'noR', admin: 'yes', out: 'noR' } },
+      ],
+    },
+  },
+  custom: {
+    presence: (el, { h }) => {
+      const names = ['Ana Ruiz', 'Ben Ott', 'Cara Lee', 'Dan Fry', 'Eve Moss', 'Finn Hart', 'Gia Park', 'Hal Webb', 'Ivy Chen', 'Jon Diaz', 'Kim Yoo', 'Leo Shaw'];
+      // Avatar fills stay fixed in both themes; white initials read on all of them.
+      const colors = ['#c2410c', '#1d4ed8', '#15803d', '#6d28d9', '#a16207', '#0e7490', '#be185d', '#4d7c0f'];
+      const box = h('div', 'w-box', `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="primary" data-a="rush">Simulate the 8:59 rush</button>
+          <button data-a="reset">Reset</button>
+          <label style="font-size:14px;display:flex;gap:6px;align-items:center"><input type="checkbox" checked data-a="throttle"> Throttle to 1 render/sec</label>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:12px;text-transform:uppercase;letter-spacing:.05em">Viewing now</div>
+        <div class="strip"></div>
+        <div class="stats"><span>presence_diffs received: <b data-s="diffs">0</b></span><span>strip re-renders: <b data-s="renders">0</b></span><span>viewers: <b data-s="viewers">0</b></span></div>`);
+      el.append(box);
+      const q = s => box.querySelector(s);
+      let viewers = 0, diffs = 0, renders = 0, dirty = false, rushT = null, renderT = null;
+      const stat = (k, v) => q(`[data-s=${k}]`).textContent = v;
+      const draw = () => {
+        renders++;
+        let html = '';
+        for (let i = 0; i < Math.min(viewers, 12); i++) {
+          const n = names[i % names.length];
+          html += `<div class="av" title="${n}" style="background:${colors[i % colors.length]}">${n.split(' ').map(w => w[0]).join('')}</div>`;
+        }
+        if (viewers > 12) html += `<span class="more">+${viewers - 12} others</span>`;
+        if (viewers) html += `<span class="more">· ${viewers + 1} here, including you</span>`;
+        q('.strip').innerHTML = html; stat('renders', renders); stat('viewers', viewers);
+      };
+      const stop = () => { clearInterval(rushT); clearInterval(renderT); rushT = renderT = null; };
+      q('[data-a=rush]').onclick = () => {
+        stop();
+        const throttle = q('[data-a=throttle]').checked;
+        if (throttle) renderT = setInterval(() => { if (dirty) { dirty = false; draw(); } }, 1000);
+        rushT = setInterval(() => {
+          if (viewers >= 300) { stop(); if (dirty) draw(); return; }
+          viewers += 3; diffs += 3; stat('diffs', diffs);
+          if (throttle) dirty = true; else draw();
+        }, 40);
+      };
+      q('[data-a=reset]').onclick = () => { stop(); viewers = diffs = 0; dirty = false; stat('diffs', 0); draw(); renders = 0; stat('renders', 0); };
+    },
+  },
+  quiz: {
+    main: [
+      { q: 'An eligible employee opens the event link two hours before previews_at. What do they get?', options: ['A countdown', 'A "not allowed" page', 'A 404'], answer: 2, explain: 'Before previews_at the event does not exist for employees. The 404 is identical to one for a missing id.' },
+      { q: 'The CEO wants five home games. How does that happen?', options: ['Raise their per-event limit', 'An event manager places holds', 'They claim during preview'], answer: 1, explain: 'Holds have user_id NULL, so they never hit the one-per-user index. The note says who they are for.' },
+      { q: "A PubSub message is dropped and Gina's page shows Dec 31 as open, but it was claimed. She clicks it.", options: ['Two people get Dec 31', 'She gets :slot_taken and the page corrects', 'The page crashes'], answer: 1, explain: 'The insert is the only authority. Broadcasts are a courtesy.' },
+      { q: 'When does Alice get her confirmation email for a claim made at 9:00 Monday?', options: ['Immediately', 'At the event close', 'Never, the page is the confirmation'], answer: 1, explain: 'Emails go out at close, at closes_at or by hand, so everyone gets the final answer once.' },
+      { q: 'Can an Event Coordinator open /admin/people?', options: ['Yes', 'No'], answer: 1, explain: 'The :admin on_mount kind is unchanged. Coordinators only get the :event_admin live_session.' },
+      { q: "An admin releases Hank's claim before the event closes. Who gets emailed?", options: ['Hank, right away', 'Nobody until close', 'The admin'], answer: 1, explain: 'Before close, admin changes send nothing. After close, assigns and releases email the employee right away.' },
+    ],
+  },
+};
+
+// =====================================================================
+// ENGINE. Content goes in EXPLAINER and the HTML above; this part should not need edits.
+// =====================================================================
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+
+  // Theme
+  const current = () => document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const sync = () => $$('[data-theme-toggle]').forEach(b => b.textContent = current() === 'dark' ? 'Light mode' : 'Dark mode');
+  $$('[data-theme-toggle]').forEach(b => b.onclick = () => {
+    const next = current() === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('rfc-explainer-theme', next);
+    sync();
+  });
+  sync();
+
+  // TOC + progress
+  const sections = $$('main > section[id]');
+  const tocLinks = $('#toc-links');
+  sections.forEach(s => {
+    const h2 = $('h2', s); if (!h2) return;
+    const num = $('small', h2)?.textContent || '';
+    const title = s.dataset.toc || [...h2.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
+    const a = h('a', null, `<span>${num}</span>${title}`); a.href = '#' + s.id; tocLinks.appendChild(a);
+  });
+  const links = $$('a', tocLinks);
+  const onScroll = () => {
+    const d = document.documentElement;
+    $('#progress').style.width = (d.scrollTop / Math.max(1, d.scrollHeight - d.clientHeight) * 100) + '%';
+    let idx = 0; sections.forEach((s, i) => { if (s.getBoundingClientRect().top < 140) idx = i; });
+    links.forEach((a, i) => a.classList.toggle('active', i === idx));
+  };
+  addEventListener('scroll', onScroll); onScroll();
+
+  // Scrubber
+  function scrubber(el, cfg) {
+    const box = h('div', 'w-box');
+    const phases = h('div', 'scrub-phases'); phases.style.gridTemplateColumns = `repeat(${cfg.phases.length}, 1fr)`;
+    const range = h('input'); Object.assign(range, { type: 'range', min: 0, max: cfg.phases.length - 1, value: 0, step: 1 });
+    range.setAttribute('aria-label', 'Phase');
+    const hasPreview = cfg.phases.some(p => p.preview);
+    const body = h('div', 'scrub-body' + (hasPreview ? '' : ' solo'));
+    const left = h('div'); const title = h('h3'); title.style.marginTop = '4px';
+    const desc = h('p'); desc.style.cssText = 'font-size:15px;margin-top:0'; const facts = h('div', 'facts');
+    left.append(title, desc, facts); body.append(left);
+    const preview = h('div', 'preview'); if (hasPreview) body.append(preview);
+    cfg.phases.forEach((p, i) => { const d = h('div', 'scrub-phase', `<b>${p.label}</b>${p.sub || ''}`); d.onclick = () => { range.value = i; render(); }; phases.append(d); });
+    function render() {
+      const i = +range.value, p = cfg.phases[i];
+      $$('.scrub-phase', phases).forEach((c, j) => c.classList.toggle('on', j === i));
+      title.innerHTML = p.title || p.label; desc.innerHTML = p.desc || '';
+      facts.innerHTML = (p.facts || []).map(f => `<div><span>${f[0]}</span><span>${f[1]}</span></div>`).join('');
+      preview.innerHTML = p.preview || '<div class="empty-state">No preview for this phase.</div>';
+    }
+    range.oninput = render; box.append(phases, range, body); el.append(box); render();
+  }
+
+  // Sequence simulator
+  function sim(el, cfg) {
+    const box = h('div', 'w-box');
+    const controls = h('div', 'sim-controls', '<strong style="font-size:14px;margin-right:6px">Scenario:</strong>');
+    const lanesEl = h('div', 'lanes'), stateEl = h('div', 'sim-state'), narr = h('div', 'narration');
+    const reset = h('button', null, 'Reset'), next = h('button', 'primary', 'Next step →');
+    let scn = cfg.scenarios[0], step = 0, laneEls = [], stateEls = {};
+    cfg.scenarios.forEach((s, i) => {
+      const b = h('button', 'chip' + (i ? '' : ' on'), s.label); b.dataset.scn = s.key;
+      b.onclick = () => { $$('.chip', controls).forEach(x => x.classList.remove('on')); b.classList.add('on'); scn = s; build(); };
+      controls.append(b);
+    });
+    controls.append(h('span', null, '')); controls.lastChild.style.flex = '1';
+    controls.append(reset, next);
+    function build() {
+      step = 0; lanesEl.innerHTML = ''; stateEl.innerHTML = ''; laneEls = []; stateEls = {};
+      const weights = scn.lanes.map(l => l.system ? '1.25fr' : '1fr');
+      lanesEl.style.gridTemplateColumns = weights.join(' ');
+      scn.lanes.forEach(l => { const d = h('div', 'lane' + (l.system ? ' system' : ''), `<h5>${l.name}</h5>`); laneEls.push(d); lanesEl.append(d); });
+      (scn.state || []).forEach(st => {
+        const c = h('div', 'card', `<b>${st.label}</b> <span class="sub">${st.sub || ''}</span>`);
+        const list = h('div', null, '<div class="entry">empty</div>'); c.append(list); stateEls[st.key] = list; stateEl.append(c);
+      });
+      stateEl.style.gridTemplateColumns = `repeat(${Math.max(1, (scn.state || []).length)}, minmax(0,1fr))`;
+      stateEl.style.display = (scn.state || []).length ? 'grid' : 'none';
+      narr.innerHTML = scn.intro || 'Click <b>Next step</b>.'; next.disabled = false;
+    }
+    next.onclick = () => {
+      const s = scn.steps[step]; if (!s) return;
+      laneEls[s.lane].append(h('div', 'msg ' + (s.kind || 'k2'), s.text));
+      if (s.state) Object.entries(s.state).forEach(([k, entries]) => {
+        stateEls[k].innerHTML = entries.length ? entries.map(e => `<div class="entry ${e[1] || ''}">${e[0]}${e[1] ? ' · ' + e[1] : ''}</div>`).join('') : '<div class="entry">empty</div>';
+      });
+      if (s.say) narr.innerHTML = s.say;
+      step++; if (step >= scn.steps.length) next.disabled = true;
+    };
+    reset.onclick = build;
+    box.append(controls, lanesEl, stateEl, narr); el.append(box); build();
+  }
+
+  // Schema explorer
+  function schema(el, cfg) {
+    const erd = h('div', 'erd'), note = h('div', 'colnote', 'Hover or focus a column.');
+    cfg.tables.forEach(t => {
+      const box = h('div', 'tbl', `<h4>${t.name}</h4>`);
+      t.cols.forEach(c => {
+        const row = h('div', 'col' + (c[3] ? ' key' : ''), `<span>${c[0]}</span><span>${c[1]}</span>`);
+        row.tabIndex = 0;
+        const show = () => { note.innerHTML = `<code>${t.name}.${c[0]}</code> ${c[2] || '<span style="color:var(--muted)">No special notes.</span>'}`; };
+        row.onmouseenter = show; row.onfocus = show; box.append(row);
+      });
+      erd.append(box);
+    });
+    el.append(erd, note);
+  }
+
+  // Persona matrix
+  function matrix(el, cfg) {
+    const bar = h('div'); bar.style.cssText = 'display:flex;gap:8px;margin:12px 0;flex-wrap:wrap';
+    const table = h('table');
+    const render = key => {
+      table.innerHTML = '<tr><th>Page or action</th><th>Result</th></tr>' +
+        cfg.rows.map(r => { const v = r.values[key]; return `<tr><td>${r.label}</td><td>${(cfg.legend && cfg.legend[v]) || v || ''}</td></tr>`; }).join('');
+    };
+    cfg.personas.forEach((p, i) => {
+      const b = h('button', 'chip' + (i ? '' : ' on'), p.label);
+      b.onclick = () => { $$('.chip', bar).forEach(x => x.classList.remove('on')); b.classList.add('on'); render(p.key); };
+      bar.append(b);
+    });
+    el.append(bar, table); render(cfg.personas[0].key);
+  }
+
+  // Quiz
+  function quiz(el, items) {
+    items.forEach((it, qi) => {
+      const d = h('div', 'q', `<div><b>${qi + 1}.</b> ${it.q}</div>`);
+      const opts = h('div', 'opts'), fb = h('div', 'fb');
+      it.options.forEach((o, i) => {
+        const b = h('button', null, o);
+        b.onclick = () => {
+          $$('button', opts).forEach(x => x.classList.remove('right', 'wrong'));
+          b.classList.add(i === it.answer ? 'right' : 'wrong');
+          fb.innerHTML = (i === it.answer ? '<b style="color:var(--green)">Right.</b> ' : '<b style="color:var(--red)">Not quite.</b> ') + it.explain;
+          fb.classList.add('show');
+        };
+        opts.append(b);
+      });
+      d.append(opts, fb); el.append(d);
+    });
+  }
+
+  // Custom: EXPLAINER.custom[key] = (el, helpers) => { ... } for one-off demos.
+  const custom = (el, fn) => fn(el, { $, $$, h });
+
+  const widgets = { scrubber, sim, schema, matrix, quiz, custom };
+  $$('[data-widget]').forEach(el => {
+    const type = el.dataset.widget, cfg = (EXPLAINER[type] || {})[el.dataset.key];
+    if (!widgets[type] || !cfg) { el.innerHTML = `<div class="callout red"><strong>Missing widget config</strong>${type} / ${el.dataset.key}</div>`; return; }
+    widgets[type](el, cfg);
+  });
+
+  // Reviewer-note index, ordered by severity, linking to each inline note.
+  const idx = $('#review-index');
+  if (idx) {
+    const rank = { hi: 0, md: 1, lo: 2 };
+    $$('.rnote[id]').map(n => ({ n, r: rank[n.dataset.sev] ?? 3 }))
+      .sort((a, b) => a.r - b.r)
+      .forEach(({ n }) => {
+        const sec = n.closest('section');
+        const secTitle = sec ? sec.dataset.toc || [...$('h2', sec).childNodes].filter(x => x.nodeType === 3).map(x => x.textContent).join('').trim() : '';
+        const title = $('b', n)?.innerHTML || n.id;
+        const li = h('li', null, `<span class="sev ${n.dataset.sev || 'lo'}">${n.dataset.label || 'note'}</span><a href="#${n.id}">${title}</a> <span class="where">(${secTitle})</span>`);
+        idx.append(li);
+      });
+  }
+})();
+</script>
+</body>
+</html>
