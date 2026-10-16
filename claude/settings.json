@@ -5,6 +5,8 @@
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
   },
   "attribution": {
+    "commit": "",
+    "pr": "",
     "sessionUrl": false,
     "coAuthoredBy": false,
     "generatedWith": false
