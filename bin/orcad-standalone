@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Keep a standalone orcad (Orca's headless server) running in a codespace so the
+# Orca desktop and phone can connect straight over Tailscale, with no Mac-side
+# SSH tunnel in between.
+#
+#   orcad-standalone enable <tailnet-name>   opt this codespace in, then start
+#   orcad-standalone start                   start the supervisor if enabled (autostart.zsh calls this)
+#   orcad-standalone pair [--mobile]         restart orcad once and print a pairing URL
+#   orcad-standalone status | stop | disable
+#
+# Opt-in lives in /workspaces/.orcad-standalone, which survives stop/start and
+# rebuilds. Do not enable this on a host the Orca desktop manages over SSH: the
+# desktop relaunches its own orcad, and the two fight over the instance lock.
+#
+# orcad and its Node runtime live in ~/.orca-remote, which a container rebuild
+# wipes. Copy them back from another codespace before starting again.
+
+set -euo pipefail
+
+CONF=/workspaces/.orcad-standalone
+REMOTE="$HOME/.orca-remote"
+LOG="$REMOTE/orcad-standalone.log"
+PAIR_REQUEST="$REMOTE/.orcad-standalone-pair"
+PORT=6768
+
+die() { echo "orcad-standalone: $*" >&2; exit 1; }
+
+orcad_dir() { ls -d "$REMOTE"/orcad-[0-9]*/ 2>/dev/null | sort -V | tail -1 | sed 's:/$::'; }
+node_bin() { ls -d "$REMOTE"/runtimes/node-*/bin/node 2>/dev/null | head -1; }
+supervisor_pid() { pgrep -f "orcad-standalone __supervise" | grep -v "^$$\$" | head -1 || true; }
+orcad_pid() { pgrep -f "$REMOTE/orcad-.*/orcad.js --bind" | head -1 || true; }
+
+load_conf() {
+  [ -r "$CONF" ] || die "not enabled here (no $CONF)"
+  # shellcheck source=/dev/null
+  . "$CONF"
+  [ -n "${PAIRING_ADDRESS:-}" ] || die "$CONF has no PAIRING_ADDRESS"
+}
+
+supervise() {
+  load_conf
+  while [ -r "$CONF" ]; do
+    local dir node ip pairing=(--no-pairing)
+    dir="$(orcad_dir)"
+    node="$(node_bin)"
+    ip="$(tailscale ip -4 2>/dev/null | head -1 || true)"
+    if [ -z "$dir" ] || [ -z "$node" ]; then
+      echo "$(date -u +%FT%TZ) orcad or node missing in $REMOTE; retrying in 60s" >>"$LOG"
+      sleep 60
+      continue
+    fi
+    if [ -z "$ip" ]; then
+      sleep 5
+      continue
+    fi
+    if [ -r "$PAIR_REQUEST" ]; then
+      case "$(cat "$PAIR_REQUEST")" in
+        mobile) pairing=(--mobile-pairing) ;;
+        *) pairing=() ;;
+      esac
+      rm -f "$PAIR_REQUEST"
+    fi
+    echo "$(date -u +%FT%TZ) starting $(basename "$dir") on $ip:$PORT ${pairing[*]:-}" >>"$LOG"
+    (cd "$HOME" && "$node" "$dir/orcad.js" --bind "$ip" --port "$PORT" \
+      --pairing-address "$PAIRING_ADDRESS" "${pairing[@]}" >>"$LOG" 2>&1) || true
+    echo "$(date -u +%FT%TZ) orcad exited; restarting in 5s" >>"$LOG"
+    sleep 5
+  done
+}
+
+start() {
+  load_conf
+  [ -n "$(supervisor_pid)" ] && return 0
+  mkdir -p "$REMOTE"
+  nohup "$0" __supervise >>"$LOG" 2>&1 </dev/null &
+  echo "orcad-standalone: started (log: $LOG)"
+}
+
+stop_orcad() {
+  local pid
+  pid="$(orcad_pid)"
+  [ -n "$pid" ] || return 0
+  kill "$pid"
+  for _ in $(seq 60); do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 1
+  done
+  die "orcad (pid $pid) did not exit"
+}
+
+pair() {
+  load_conf
+  [ -n "$(supervisor_pid)" ] || start
+  local mode=runtime lines
+  [ "${1:-}" = "--mobile" ] && mode=mobile
+  echo "$mode" >"$PAIR_REQUEST"
+  lines="$(wc -l <"$LOG" 2>/dev/null || echo 0)"
+  stop_orcad
+  for _ in $(seq 120); do
+    if tail -n +"$((lines + 1))" "$LOG" | grep -o 'orca://pair?code=[A-Za-z0-9_-]*' | tail -1 | grep .; then
+      return 0
+    fi
+    sleep 1
+  done
+  die "no pairing URL after 120s; see $LOG"
+}
+
+case "${1:-}" in
+  enable)
+    [ -n "${2:-}" ] || die "usage: orcad-standalone enable <tailnet-name>"
+    printf 'PAIRING_ADDRESS=%q\n' "$2" | sudo tee "$CONF" >/dev/null
+    sudo chown "$(id -u):$(id -g)" "$CONF"
+    start
+    ;;
+  disable)
+    rm -f "$CONF"
+    pid="$(supervisor_pid)"
+    [ -n "$pid" ] && kill "$pid"
+    stop_orcad
+    ;;
+  start) start ;;
+  stop)
+    pid="$(supervisor_pid)"
+    [ -n "$pid" ] && kill "$pid"
+    stop_orcad
+    ;;
+  pair) pair "${2:-}" ;;
+  status)
+    echo "enabled:    $([ -r "$CONF" ] && cat "$CONF" || echo no)"
+    echo "supervisor: $(supervisor_pid || true)"
+    echo "orcad:      $(orcad_pid || true)"
+    ;;
+  __supervise) supervise ;;
+  *) sed -n '2,15p' "$0"; exit 1 ;;
+esac

@@ -10,4 +10,9 @@ if [[ "$CODESPACES" == "true" ]]; then
     echo "[codespace] restarting tailscaled"
     sudo sh -c 'nohup tailscaled --statedir=/workspaces/.tailscale >>/workspaces/.tailscale/tailscaled.log 2>&1 &'
   fi
+
+  # Standalone orcad, only in codespaces opted in with `orcad-standalone enable`.
+  if [[ -r /workspaces/.orcad-standalone ]]; then
+    "$DOTFILES/bin/orcad-standalone" start
+  fi
 fi
