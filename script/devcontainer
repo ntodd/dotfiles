@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#
+# Dotfiles install command for devcontainers (Foreman, the devcontainer CLI).
+# They run the install command as a file and can't pass it arguments, so
+# this passes setup the --force it needs to run without prompting.
+
+exec "$(dirname "$0")/setup" --force "$@"
