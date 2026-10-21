@@ -95,7 +95,7 @@ restart ORCA_MOBILE_PAIRING=1 >/dev/null
 wait_for "-F -e ▀ -e ▄ -e █" 120 || echo "(no QR yet; showing the log as it is)"
 sleep 2
 echo
-on_env cat ~/orca-serve.log
+on_env 'cat ~/orca-serve.log'
 echo
 read -r -p "Scan the QR with Orca on your phone, wait for it to connect, then press Enter. "
 
