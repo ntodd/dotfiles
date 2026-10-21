@@ -1,63 +1,111 @@
 #!/usr/bin/env bash
 #
-# orca-pair — pair this desktop's Orca with the runtime in a devcontainer
-# (the ntodd/devcontainer-features orca feature, e.g. a Foreman environment).
+# orca-pair — pair this Mac and a phone with a Foreman environment's Orca
+# runtime (the ntodd/devcontainer-features orca feature).
 #
-#   orca-pair [user@]host [name]           pair using the offer in ~/orca-serve.log
-#   orca-pair --new-offer [user@]host [name]
-#                                          restart the runtime in pairing mode first
-#                                          (another desktop; kills running agents)
+#   orca-pair capsend-1 [ssh user, default nate]
 #
-# host is the environment's tailnet name (capsend-1, say); name is what Orca
-# calls the environment and defaults to host. After pairing, the runtime is
-# restarted supervised: pairing mode doesn't restart a crashed server.
+# Prints the desktop pairing URL and saves the environment in this Mac's Orca,
+# then shows a QR to scan with Orca on the phone, then leaves the runtime
+# supervised. The runtime offers one or the other per start, so it's started
+# once for each. Both are bearer secrets.
 #
-# The runtime starts in pairing mode until some device has connected, so a new
-# environment needs no --new-offer. The code is a bearer secret and is never
-# printed.
+# Only needed once per environment: the runtime remembers paired devices in
+# ~/.config/orca, which is on the environment's HOME volume, so restarts and
+# rebuilds come back supervised and already paired. A destroyed and recreated
+# environment is a new runtime, so run this again then. On an environment
+# that's paired already, the restarts kill running agents.
 
 set -euo pipefail
 
-die() {
-  echo "orca-pair: $*" >&2
-  exit 1
+env_name=${1:?usage: orca-pair <environment> [ssh user, default nate]}
+ssh_user=${2:-nate}
+host="$ssh_user@$env_name"
+wait_secs=${ORCA_PAIR_WAIT:-600}
+
+# A recreated environment is a new tailnet node with a new SSH host key. The
+# name only resolves to the node Tailscale has under it, so drop the stale
+# key and take the current one.
+ssh-keygen -R "$env_name" >/dev/null 2>&1 || true
+ssh_opts=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=15)
+
+# Expanding locally is the point: callers build the remote command.
+# shellcheck disable=SC2029
+on_env() {
+  ssh "${ssh_opts[@]}" "$host" "$@"
 }
 
-new_offer=false
-if [ "${1:-}" = --new-offer ]; then
-  new_offer=true
-  shift
+# An ssh session doesn't get the container's TS_HOSTNAME, so orca-serve run
+# from one would advertise 127.0.0.1. The name ssh just reached is the one
+# this machine can reach it at.
+restart() {
+  on_env "ORCA_PAIRING_ADDRESS=$env_name $* orca-serve --restart"
+}
+
+# Waits for the runtime's log to match: grep arguments, then seconds.
+wait_for() {
+  local grep_args=$1 deadline=$((SECONDS + $2))
+  until on_env "grep -q $grep_args ~/orca-serve.log 2>/dev/null"; do
+    [ $SECONDS -lt $deadline ] || return 1
+    sleep 3
+  done
+}
+
+# --- Desktop ---------------------------------------------------------------
+
+# A new environment starts in pairing mode, after downloading Orca on its
+# first start. One that's been paired starts supervised and prints no offer.
+offer="-F 'orca://pair?code='"
+echo "Waiting for $env_name's desktop pairing offer..."
+if ! wait_for "$offer" 20; then
+  # orca-serve's own test for whether a device has ever connected.
+  if on_env "grep -Eqs '\"lastSeenAt\": *[1-9]' ~/.config/orca/orca-devices.json"; then
+    echo "$env_name is paired already; restarting it for a new offer."
+    restart ORCA_PAIRING=1 >/dev/null
+  fi
+  wait_for "$offer" "$wait_secs" || {
+    echo "No desktop pairing offer after ${wait_secs}s; see ~/orca-serve.log on $env_name." >&2
+    exit 1
+  }
 fi
 
-[ $# -ge 1 ] && [ $# -le 2 ] || die "usage: orca-pair [--new-offer] [user@]host [name]"
-command -v orca >/dev/null 2>&1 || die "orca CLI not found on this machine"
+url=$(on_env "grep -o 'orca://pair?code=[^ ]*' ~/orca-serve.log | tail -1")
+echo
+echo "Desktop pairing URL:"
+echo "$url"
+echo
 
-target=$1
-[[ "$target" == *@* ]] || target="$USER@$target"
-name=${2:-${target#*@}}
-
-if $new_offer; then
-  echo "Restarting the runtime on ${target#*@} in pairing mode..."
-  ssh "$target" 'ORCA_PAIRING=1 orca-serve --restart' >/dev/null
+# The old entry points at a runtime that's gone.
+if orca environment show --environment "$env_name" >/dev/null 2>&1; then
+  orca environment rm --environment "$env_name" >/dev/null
 fi
+orca environment add --name "$env_name" --pairing-code "$url"
 
-# The runtime prints its offer a few seconds after it starts, which can be
-# after the environment says it's ready.
-tries=15
-$new_offer && tries=60
-code=
-for _ in $(seq 1 "$tries"); do
-  code=$(ssh "$target" "grep -o 'orca://pair?code=[A-Za-z0-9_-]*' ~/orca-serve.log 2>/dev/null | tail -1" || true)
-  [ -n "$code" ] && break
-  sleep 2
-done
+# The runtime only comes back supervised once a device has connected, and
+# saving the environment doesn't connect.
+orca status --environment "$env_name" >/dev/null
 
-if [ -z "$code" ]; then
-  $new_offer && die "no pairing offer after $((tries * 2))s; see ~/orca-serve.log on ${target#*@}"
-  die "no pairing offer in ~/orca-serve.log on ${target#*@}; it's probably paired already." \
-    "Run orca-pair --new-offer $* for a new one (kills running agents)"
+# --- Mobile ----------------------------------------------------------------
+
+echo
+echo "Starting a mobile pairing offer..."
+restart ORCA_MOBILE_PAIRING=1 >/dev/null
+# The offer is a QR drawn in block characters. Fixed strings, since the
+# environment's locale may not be UTF-8.
+wait_for "-F -e ▀ -e ▄ -e █" 120 || echo "(no QR yet; showing the log as it is)"
+sleep 2
+echo
+on_env cat ~/orca-serve.log
+echo
+read -r -p "Scan the QR with Orca on your phone, wait for it to connect, then press Enter. "
+
+# --- Supervised ------------------------------------------------------------
+
+out=$(restart)
+echo "$out"
+if ! grep -q '(supervised)' <<<"$out"; then
+  echo "The runtime came back in pairing mode, so no device has connected." >&2
+  echo "Connect once, then: ssh $host 'ORCA_PAIRING_ADDRESS=$env_name orca-serve --restart'" >&2
+  exit 1
 fi
-
-orca environment add --name "$name" --pairing-code "$code"
-ssh "$target" orca-serve --restart
-echo "Paired $name; the runtime on ${target#*@} is supervised again."
+echo "Paired $env_name."
