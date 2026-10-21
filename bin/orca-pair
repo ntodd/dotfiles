@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#
+# orca-pair — pair this desktop's Orca with the runtime in a devcontainer
+# (the ntodd/devcontainer-features orca feature, e.g. a Foreman environment).
+#
+#   orca-pair [user@]host [name]           pair using the offer in ~/orca-serve.log
+#   orca-pair --new-offer [user@]host [name]
+#                                          restart the runtime in pairing mode first
+#                                          (another desktop; kills running agents)
+#
+# host is the environment's tailnet name (capsend-1, say); name is what Orca
+# calls the environment and defaults to host. After pairing, the runtime is
+# restarted supervised: pairing mode doesn't restart a crashed server.
+#
+# The runtime starts in pairing mode until some device has connected, so a new
+# environment needs no --new-offer. The code is a bearer secret and is never
+# printed.
+
+set -euo pipefail
+
+die() {
+  echo "orca-pair: $*" >&2
+  exit 1
+}
+
+new_offer=false
+if [ "${1:-}" = --new-offer ]; then
+  new_offer=true
+  shift
+fi
+
+[ $# -ge 1 ] && [ $# -le 2 ] || die "usage: orca-pair [--new-offer] [user@]host [name]"
+command -v orca >/dev/null 2>&1 || die "orca CLI not found on this machine"
+
+target=$1
+[[ "$target" == *@* ]] || target="$USER@$target"
+name=${2:-${target#*@}}
+
+if $new_offer; then
+  echo "Restarting the runtime on ${target#*@} in pairing mode..."
+  ssh "$target" 'ORCA_PAIRING=1 orca-serve --restart' >/dev/null
+fi
+
+# The runtime prints its offer a few seconds after it starts, which can be
+# after the environment says it's ready.
+tries=15
+$new_offer && tries=60
+code=
+for _ in $(seq 1 "$tries"); do
+  code=$(ssh "$target" "grep -o 'orca://pair?code=[A-Za-z0-9_-]*' ~/orca-serve.log 2>/dev/null | tail -1" || true)
+  [ -n "$code" ] && break
+  sleep 2
+done
+
+if [ -z "$code" ]; then
+  $new_offer && die "no pairing offer after $((tries * 2))s; see ~/orca-serve.log on ${target#*@}"
+  die "no pairing offer in ~/orca-serve.log on ${target#*@}; it's probably paired already." \
+    "Run orca-pair --new-offer $* for a new one (kills running agents)"
+fi
+
+orca environment add --name "$name" --pairing-code "$code"
+ssh "$target" orca-serve --restart
+echo "Paired $name; the runtime on ${target#*@} is supervised again."
