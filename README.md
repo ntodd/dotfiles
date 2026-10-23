@@ -71,12 +71,17 @@ cd ~/.dotfiles
 script/setup
 ```
 
-This will symlink the appropriate files in `.dotfiles` to your home directory.
-Everything is configured and tweaked within `~/.dotfiles`.
+This will symlink the appropriate files in the repo to your home directory.
 
-## Codespaces
+`~/.dotfiles` is only a convention: the clone can live anywhere. `.zshrc` finds
+the repo by following its own symlink, so `$DOTFILES` points at wherever you
+cloned it.
 
-If you are using GitHub Codespaces dotfile integration, this repository should work as-is.
+## Codespaces and devcontainers
+
+This repository works as-is with GitHub Codespaces' dotfiles integration, and
+with the devcontainer CLI's (and Foreman's), which clone to `~/dotfiles`. For
+the devcontainer CLI, set the install command to `script/devcontainer`.
 
 ## Thanks
 
