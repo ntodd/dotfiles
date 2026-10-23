@@ -63,12 +63,16 @@ if [[ -e ~/.localrc ]]; then
   source ~/.localrc
 fi
 
-# If CODESPACES is set, dotfiles were cloned to workspace
-if [[ -n "$CODESPACES" ]]; then
-  export DOTFILES=/workspaces/.codespaces/.persistedshare/dotfiles
-else
-  # Otherwise, dotfiles should have been cloned to ~/.dotfiles by user
-  export DOTFILES=$HOME/.dotfiles
+# The repo is wherever this file really lives: script/setup symlinks
+# ~/.zshrc to zsh/zshrc.symlink, so resolve the link and go up two levels.
+# That covers a clone in ~/.dotfiles, ~/dotfiles (the devcontainer CLI and
+# Foreman), Codespaces' persisted share or anywhere else. If ~/.zshrc is a
+# copy rather than the link, fall back to the usual places.
+export DOTFILES=${${(%):-%x}:A:h:h}
+if [[ ! -f $DOTFILES/zsh/zshrc.symlink ]]; then
+  for DOTFILES in /workspaces/.codespaces/.persistedshare/dotfiles ~/.dotfiles ~/dotfiles; do
+    [[ -f $DOTFILES/zsh/zshrc.symlink ]] && break
+  done
 fi
 
 # all of our zsh files (exclude non-shell directories)
