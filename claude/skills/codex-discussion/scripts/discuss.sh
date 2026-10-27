@@ -53,7 +53,15 @@ else
         exit 1
     fi
 
-    CMD=(codex exec -s read-only --enable web_search_request)
+    # Codex's bwrap sandbox needs user namespaces, which Docker's default
+    # seccomp/AppArmor profiles block; the container is the isolation there.
+    SANDBOX=${CODEX_SANDBOX:-read-only}
+    if [ -z "$CODEX_SANDBOX" ] && [ -n "$FOREMAN_ENV$CODESPACES" ] &&
+        ! unshare -Ur true 2>/dev/null; then
+        SANDBOX=danger-full-access
+    fi
+
+    CMD=(codex exec -s "$SANDBOX" --enable web_search_request)
 
     # Add model if specified
     if [ -n "$CODEX_MODEL" ]; then
