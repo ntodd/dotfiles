@@ -78,7 +78,7 @@ Signs the database and not the diff is at fault:
 
 ## Model routing
 
-Every role inherits the calling session's model. Per-stage routing goes through `modelRoles` plus `task.agentModelOverrides`:
+`dev-reviewer` sets `model: "@reviewer"`, which resolves through `modelRoles.reviewer` — with this dotfiles config, `openai-codex/gpt-6.1-sol:high`. The other five roles inherit the calling session's model. To move any role:
 
 ```yaml
 modelRoles:
@@ -86,5 +86,6 @@ modelRoles:
 task:
   agentModelOverrides:
     dev-implementer: "@dev_implementer"
-    dev-reviewer: "@reviewer"
 ```
+
+`task.agentModelOverrides` beats the agent's own `model:` line, so a single entry per role repo-wide moves that stage without editing the agent files. A role that cannot resolve (unknown alias, unavailable model) fails preflight rather than falling back to the session model.
