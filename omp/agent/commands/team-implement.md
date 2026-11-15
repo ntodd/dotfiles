@@ -8,6 +8,6 @@ Implement `$1` in this repository with the team-implement DAG. The second argume
 1. Read `skill://team-implement`.
 2. Load the driver in one eval cell: `%load "~/.omp/agent/skills/team-implement/driver.py"`, or `.omp/skills/team-implement/driver.py` when the repository ships its own copy.
 3. In the next eval cell: `team_implement(spec="$1", verify="$2", cwd=".")`
-4. Report `verify_exit`, `verdict`, `repair_rounds`, `stalled`, `changed`, and `rundir` from the returned dict.
+4. Report `verify_exit`, `verdict`, `visual`, `repair_rounds`, `stalled`, `changed`, `rundir`, and `pr` when a PR was requested.
 5. If the call raises, report the error message and the last lines of `<rundir>/verify.log`. Do not restart the run.
 6. Read `git diff` and `<rundir>/review.md` before reporting success. The change stays uncommitted.

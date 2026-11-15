@@ -12,7 +12,11 @@ Rules for the edit:
 
 - follow the repository's existing conventions rather than introducing a parallel one;
 - change only what the spec and the plan require, in this repository only;
+- work test-first for behavioral changes: write the failing test, run it, confirm it fails for the expected reason, then implement until it passes. Record the red command and its failure line under `## Implementation`;
+- for a bug, reproduce it with a failing test before changing the fix;
+- a refactor, a config edit, or generated code needs no new test — say that in `## Implementation` instead of inventing one;
 - add or update tests where the spec's behavior is not already covered;
+- if the change has a visual surface, record the command that serves the app and the affected routes in `notes.md`, so the visual stage can drive them;
 - run the verification command named in your prompt and keep working while it fails;
 - leave the working tree building and the suite as green as you found it.
 

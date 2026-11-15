@@ -1,15 +1,15 @@
 ---
 name: team-implement
-description: Implement a spec or GitHub issue in the current repository with a team — plan, two parallel designs, implement, verify with your command, review the diff, one repair round. Use for a feature, bug fix, or issue that touches real code; not for reading code or answering questions.
+description: Implement a spec or GitHub issue in the current repository with a team — plan, two parallel designs, test-first implementation, verify with your command, review the diff, drive a headless browser for UI changes, repair until green, and optionally open a PR with screenshots. Use for a feature, bug fix, or issue that touches real code; not for reading code or answering questions.
 ---
 
 # team-implement
 
-One repository change, six role agents, each in a fresh context, handoffs through files under `<repo>/.omp/team-runs/<run_id>/`, and your verify command as the only pass condition.
+One repository change, seven role agents, each in a fresh context, handoffs through files under `<repo>/.omp/team-runs/<run_id>/`, and your verify command as the only pass condition.
 
 ```
-plan ──┬── design-a ──┬── implement ── verify ── review ── repair ── verify ── review
-       └── design-b ──┘
+plan ──┬── design-a ──┬── implement ── verify ── review ── visual ── repair ── verify ── review ── visual
+       └── design-b ──┘                          (visual only when the diff has a UI surface)
 ```
 
 | stage | agent | reads | writes |
@@ -19,7 +19,8 @@ plan ──┬── design-a ──┬── implement ── verify ── rev
 | implement | `dev-implementer` | spec, plan, both designs | source, tests, `<run>/notes.md` |
 | verify | `bash` | — | `<run>/verify.log` |
 | review | `dev-reviewer` | spec, diff, verify log | `<run>/review.md` (`VERDICT: PASS\|FAIL`) |
-| repair | `dev-repairer` | review findings | source, `<run>/notes.md` |
+| visual | `dev-visual` | serve command, routes | `<run>/visual.md` (`VISUAL: PASS\|FAIL\|SKIPPED`), `<run>/screenshots/*.png` |
+| repair | `dev-repairer` | review and visual findings | source, tests, `<run>/notes.md` |
 
 ## Run
 
@@ -44,13 +45,45 @@ A project copy at `.omp/skills/team-implement/driver.py` takes precedence when p
 | `spec` | repo-relative path, issue number (`"412"`, `"#412"`), or GitHub issue URL; `gh issue view` resolves an issue to title, body, comments, and labels |
 | `verify` | required shell command run from `cwd`; exit 0 is the only pass condition |
 | `cwd` | repository root the team works in (default: session cwd) |
-| `repairs` | `None` repeats repair→verify→review until the gate is green; an integer caps the rounds at that value |
+| `repairs` | `None` repeats repair→verify→review→visual until the gate is green; an integer caps the rounds at that value |
 | `max_rounds` | hard cap applied when `repairs` is `None` (default 3) |
 | `verify_timeout` | seconds per verify run (default 900) |
+| `visual` | `"auto"` (default) runs `dev-visual` when the diff touches `.css`/`.html`/`.tsx`/`.vue`/`.svelte`/templates and similar; `"force"` always; `"off"` never |
+| `pr` | `True` commits, pushes a `team/<run_id>` branch, and opens a PR with the screenshots attached; requires a clean worktree before the run |
+| `pr_base` | base branch for the PR (default: the remote's default branch) |
+| `pr_title` | PR title (default: the spec's first line, trimmed to 72 characters) |
 
-Returns `verify_exit`, `verdict`, `repair_rounds`, `stalled`, `history` (one entry per stage with its exit code, verdict, and whether the tree changed), `handles` (`agent://<id>` per stage), `changed`, `tail`, `rundir`. A nonzero verify, `VERDICT: FAIL`, or a stalled round raises instead of returning.
+Returns `verify_exit`, `verdict`, `visual`, `repair_rounds`, `stalled`, `history` (one entry per stage with its exit code, verdict, visual verdict, and whether the tree changed), `handles` (`agent://<id>` per stage), `screenshots`, `pr`, `pr_branch`, `pr_note`, `token_dropped`, `changed`, `tail`, `rundir`. A nonzero verify, `VERDICT: FAIL`, `VISUAL: FAIL`, or a stalled round raises instead of returning.
 
 Each verify run writes `verify-<n>.log`; `verify.log` always holds the latest. A round that changes nothing in the tree and reproduces the same exit code and verdict stops the loop with `RuntimeError: repair stalled in round <n>`, which is what an environmental failure such as a stale test database produces on the first repair.
+
+## Tests
+
+`dev-implementer` works test-first for behavioral changes: the failing test, the red run recorded in `notes.md`, then the implementation until green. A bug fix starts from a test that reproduces the bug. A refactor, config edit, or generated file needs no new test, and `notes.md` must say so. `dev-reviewer` treats a behavioral change with no test, and no stated reason, as blocking.
+
+`verify` stays the gate: it decides pass or fail, and the tests are how the change earns it. If the repository's suite is slow, scope the gate to the affected packages rather than dropping tests.
+
+## Visual check
+
+`dev-visual` runs when the diff has a UI surface. It starts the app with the command `notes.md` records, drives the affected routes in a headless browser (`browser.open`, `tab.observe`, then real clicks and typing), writes each state to `<run>/screenshots/`, and records console errors.
+
+- `VISUAL: PASS` — every affected flow works.
+- `VISUAL: FAIL` — a flow is broken; this enters the repair loop and is re-checked after each repair.
+- `VISUAL: SKIPPED` — no browser, the app cannot be served, or there is no page to drive; the run continues and the summary carries the reason.
+
+The stage never alters a page with scripts to make a state look right, and it reports SKIPPED rather than PASS when nothing was driven. A repo with no browser still passes on `verify` alone.
+
+## Pull requests
+
+`pr=True` requires a clean worktree; the driver refuses to run otherwise, so it cannot sweep up your in-progress edits. On a passing run it creates `team/<run_id>`, commits everything outside `.omp/`, pushes, and creates the PR with `gh pr create --body-file <run>/pr-body.md` plus `--attach` for each screenshot (`path#alt`). Nothing is pushed when the gates are red.
+
+Attachments fall back in this order, and the summary reports which step succeeded:
+
+1. `gh pr create` with `--attach` and the current environment.
+2. The same command with `GH_TOKEN` and `GITHUB_TOKEN` removed (`env -u`), so gh uses its stored login.
+3. The PR is created without attachments, and the body carries `> Screenshots could not be attached: <first error line>`.
+
+No other workarounds: no hidden branches, no rewriting the PR body through the API, no suppressing the failure. If step 3 fails too, the run raises with gh's error and the branch stays pushed for you to open the PR by hand.
 
 ## Shared test databases (Ecto)
 
