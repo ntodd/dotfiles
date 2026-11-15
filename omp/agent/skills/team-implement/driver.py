@@ -2,18 +2,28 @@
 
 team_implement(spec, verify, cwd) runs planner, two parallel designs, implementer,
 reviewer and repairer as fresh-context subagents that share files under
-<repo>/.omp/team-runs/<run_id>/. verify is the only pass condition: a run that still
-exits nonzero, or whose review.md verdict is FAIL, raises instead of returning.
+<repo>/.omp/team-runs/<run_id>/. verify is the only pass condition. Repair repeats
+until the gate is green, a round changes nothing, or max_rounds is reached; a run
+that ends without both verify exit 0 and review PASS raises instead of returning.
 
 Helpers are nested so that loading this file next to another team driver in one
 eval kernel cannot rebind the other driver's module-level names.
 """
 
+import hashlib
 import time
 from pathlib import Path
 
 
-def team_implement(spec="spec.md", verify=None, cwd=".", repairs=1, verify_timeout=900, check_ledger=True):
+def team_implement(
+    spec="spec.md",
+    verify=None,
+    cwd=".",
+    repairs=None,
+    max_rounds=10,
+    verify_timeout=900,
+    check_ledger=True,
+):
     rules = (
         "Fresh context: stage inputs are files on disk, not chat. Read {rundir}/spec.md, "
         "{rundir}/plan.md and {rundir}/notes.md before acting. Repository root: {repo}. "
@@ -68,10 +78,20 @@ Spec: `spec.md`. Plan: `plan.md`. Review: `review.md`.
                     return "FAIL"
         return None
 
-    def run_verify(repo, rundir, cmd, timeout):
+    def run_verify(repo, rundir, cmd, timeout, round_no):
         status, out = run_shell(cmd, repo, timeout)
         (rundir / "verify.log").write_text(out)
+        (rundir / f"verify-{round_no}.log").write_text(out)
         return status, out
+
+    def change_signature(repo):
+        _, tracked = run_shell("git status --short", repo, 120)
+        _, diff = run_shell("git diff HEAD", repo, 300)
+        return hashlib.sha1((tracked + "\x00" + diff).encode()).hexdigest()[:12]
+
+    def read_verdict(rundir):
+        path = rundir / "review.md"
+        return verdict_of(path.read_text()) if path.is_file() else None
 
     def stage(name, label, prompt, handles):
         handle = agent(prompt, agent=name, label=label)
@@ -108,17 +128,35 @@ Spec: `spec.md`. Plan: `plan.md`. Review: `review.md`.
 
     stage("dev-implementer", "implement", f"{header}\nVerification command: {verify}\nImplement the spec in {repo}.", handles)
 
-    status, log = run_verify(repo, rundir, verify, verify_timeout)
+    status, log = run_verify(repo, rundir, verify, verify_timeout, 1)
     stage("dev-reviewer", "review-1", f"{header}\nVerification command: {verify}\nReview the working tree and write review.md in {rundir}.", handles)
-    verdict = verdict_of((rundir / "review.md").read_text()) if (rundir / "review.md").is_file() else None
+    verdict = read_verdict(rundir)
 
+    limit = max_rounds if repairs is None else repairs
     rounds = 0
-    while (status != 0 or verdict == "FAIL") and rounds < repairs:
+    stalled = False
+    history = [{"stage": "initial", "verify_exit": status, "verdict": verdict}]
+    signature = change_signature(repo)
+    while (status != 0 or verdict == "FAIL") and rounds < limit:
         rounds += 1
+        failed_status, failed_verdict = status, verdict
         stage("dev-repairer", f"repair-{rounds}", f"{header}\nVerification command: {verify}\nApply the blocking findings in {rundir}/review.md.", handles)
-        status, log = run_verify(repo, rundir, verify, verify_timeout)
+        status, log = run_verify(repo, rundir, verify, verify_timeout, rounds + 1)
         stage("dev-reviewer", f"review-{rounds + 1}", f"{header}\nVerification command: {verify}\nRe-review the working tree and overwrite review.md in {rundir}.", handles)
-        verdict = verdict_of((rundir / "review.md").read_text()) if (rundir / "review.md").is_file() else None
+        verdict = read_verdict(rundir)
+        next_signature = change_signature(repo)
+        history.append(
+            {
+                "stage": f"repair-{rounds}",
+                "verify_exit": status,
+                "verdict": verdict,
+                "tree_changed": next_signature != signature,
+            }
+        )
+        if next_signature == signature and status == failed_status and verdict == failed_verdict:
+            stalled = True
+            break
+        signature = next_signature
 
     _, change_out = run_shell("git status --short", repo, 60)
     summary = {
@@ -129,10 +167,14 @@ Spec: `spec.md`. Plan: `plan.md`. Review: `review.md`.
         "verify_exit": status,
         "verdict": verdict,
         "repair_rounds": rounds,
+        "stalled": stalled,
+        "history": history,
         "handles": handles,
         "changed": change_out.strip().splitlines()[:40],
         "tail": log.strip().splitlines()[-5:],
     }
+    if stalled:
+        raise RuntimeError(f"repair stalled in round {rounds}: no tree change and the same failure: {summary}")
     if status != 0:
         raise RuntimeError(f"verify still failing after {rounds} repair round(s): {summary}")
     if verdict == "FAIL":

@@ -44,10 +44,33 @@ A project copy at `.omp/skills/team-implement/driver.py` takes precedence when p
 | `spec` | repo-relative path, issue number (`"412"`, `"#412"`), or GitHub issue URL; `gh issue view` resolves an issue to title, body, comments, and labels |
 | `verify` | required shell command run from `cwd`; exit 0 is the only pass condition |
 | `cwd` | repository root the team works in (default: session cwd) |
-| `repairs` | review→repair→re-verify cycles (default 1) |
+| `repairs` | `None` repeats repair→verify→review until the gate is green; an integer caps the rounds at that value |
+| `max_rounds` | hard cap applied when `repairs` is `None` (default 10) |
 | `verify_timeout` | seconds per verify run (default 900) |
 
-Returns `verify_exit`, `verdict`, `repair_rounds`, `handles` (`agent://<id>` per stage), `changed`, `tail`, `rundir`. A nonzero verify or `VERDICT: FAIL` raises instead of returning.
+Returns `verify_exit`, `verdict`, `repair_rounds`, `stalled`, `history` (one entry per stage with its exit code, verdict, and whether the tree changed), `handles` (`agent://<id>` per stage), `changed`, `tail`, `rundir`. A nonzero verify, `VERDICT: FAIL`, or a stalled round raises instead of returning.
+
+Each verify run writes `verify-<n>.log`; `verify.log` always holds the latest. A round that changes nothing in the tree and reproduces the same exit code and verdict stops the loop with `RuntimeError: repair stalled in round <n>`, which is what an environmental failure such as a stale test database produces on the first repair.
+
+## Shared test databases (Ecto)
+
+Applies to `mix`/Ecto projects whose `verify` command opens a database that other checkouts also open. Stacks with in-memory or per-process fixtures (pytest, XCTest, Node) need nothing here. Ecto, one database per run:
+
+```bash
+export MIX_TEST_PARTITION=_verify$(date +%s)   # suffixes the test DB name
+MIX_ENV=test mix ecto.create
+MIX_ENV=test mix ecto.migrate                  # applies this tree's priv/repo/migrations
+mix precommit
+MIX_ENV=test mix ecto.drop                     # after the run
+```
+
+Pass that as the gate: `verify="MIX_TEST_PARTITION=_verify1 MIX_ENV=test mix precommit"`, with `ecto.create` and `ecto.migrate` run for the same partition first.
+
+Signs the database and not the diff is at fault:
+
+- many failures sharing one SQLSTATE (`23502`, `42P01`) and the same relation or column;
+- `schema_migrations` rows whose timestamps have no file under `priv/repo/migrations` — another checkout applied them to the shared database;
+- `stalled: true` on the first repair round, which is the driver reporting that repair changed nothing and the failure reproduced.
 
 ## Boundaries
 
