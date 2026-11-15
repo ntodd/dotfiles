@@ -190,10 +190,12 @@ install_omp_config() {
 
   link_file "$DOTFILES_ROOT/omp/agent/config.yml" "$HOME/.omp/agent/config.yml"
 
-  # rules and agents are owned entirely by this repo, so link the directories;
-  # new files then appear without re-running setup
+  # Directory links: a file written into ~/.omp/agent/<name> lands in this repo,
+  # so new entries need no setup rerun. Only these four directories are fully tracked.
   link_file "$DOTFILES_ROOT/omp/agent/rules" "$HOME/.omp/agent/rules"
   link_file "$DOTFILES_ROOT/omp/agent/agents" "$HOME/.omp/agent/agents"
+  link_file "$DOTFILES_ROOT/omp/agent/skills" "$HOME/.omp/agent/skills"
+  link_file "$DOTFILES_ROOT/omp/agent/commands" "$HOME/.omp/agent/commands"
 
   # extensions are linked per file because ~/.omp/agent/extensions also holds
   # locally installed extensions that are not tracked here
