@@ -20,7 +20,7 @@ def team_implement(
     verify=None,
     cwd=".",
     repairs=None,
-    max_rounds=10,
+    max_rounds=3,
     verify_timeout=900,
     check_ledger=True,
 ):

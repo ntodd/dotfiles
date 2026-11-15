@@ -45,7 +45,7 @@ A project copy at `.omp/skills/team-implement/driver.py` takes precedence when p
 | `verify` | required shell command run from `cwd`; exit 0 is the only pass condition |
 | `cwd` | repository root the team works in (default: session cwd) |
 | `repairs` | `None` repeats repair→verify→review until the gate is green; an integer caps the rounds at that value |
-| `max_rounds` | hard cap applied when `repairs` is `None` (default 10) |
+| `max_rounds` | hard cap applied when `repairs` is `None` (default 3) |
 | `verify_timeout` | seconds per verify run (default 900) |
 
 Returns `verify_exit`, `verdict`, `repair_rounds`, `stalled`, `history` (one entry per stage with its exit code, verdict, and whether the tree changed), `handles` (`agent://<id>` per stage), `changed`, `tail`, `rundir`. A nonzero verify, `VERDICT: FAIL`, or a stalled round raises instead of returning.
